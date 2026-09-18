@@ -29,6 +29,8 @@ from fastapi import FastAPI
 from telemetria.config import CommonSettings, ProcessorSettings
 from telemetria.domain.events import Event
 from telemetria.logging_config import configure_logging
+from telemetria.metrics import PROCESSOR_QUEUE_CAPACITY
+from telemetria.metrics.middleware import add_metrics
 from telemetria.processor.batch import BatchProcessor
 from telemetria.processor.uds_server import UDSServer
 from telemetria.sinks import get_sink
@@ -45,8 +47,11 @@ def _get_version() -> str:
         return "unknown"
 
 
-def create_app() -> FastAPI:
+def create_app(settings: CommonSettings | None = None) -> FastAPI:
     """Create the FastAPI health application (no UDS/batch — those run in main)."""
+    if settings is None:
+        settings = CommonSettings()
+
     application = FastAPI(
         title="Telemetria Processor",
         version=_get_version(),
@@ -58,6 +63,7 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"process": _PROCESS, "version": _get_version(), "status": "ok"}
 
+    add_metrics(application, process=_PROCESS, enabled=settings.metrics_enabled)
     return application
 
 
@@ -88,6 +94,7 @@ async def _run(settings: ProcessorSettings) -> None:
     log.info("Sink provider: %s", sink.name)
 
     queue: asyncio.Queue[Event] = asyncio.Queue()
+    PROCESSOR_QUEUE_CAPACITY.set(queue.maxsize if queue.maxsize else 0)
 
     uds_server = UDSServer(settings.ipc_socket_path, queue)
     processor = BatchProcessor(

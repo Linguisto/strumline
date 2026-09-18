@@ -30,6 +30,12 @@ from telemetria.ipc.codec import (
     decode_envelope_body,
     read_frame,
 )
+from telemetria.metrics import (
+    IPC_FRAMES_TOTAL,
+    IPC_PROTOCOL_ERRORS_TOTAL,
+    PROCESSOR_EVENTS_DROPPED_TOTAL,
+    PROCESSOR_QUEUE_DEPTH,
+)
 
 if TYPE_CHECKING:
     from telemetria.domain.events import Event
@@ -121,21 +127,31 @@ class UDSServer:
                 body = await read_frame(reader, self._max_frame_bytes)
             except TruncatedFrameError as exc:
                 log.warning("IPC truncated frame discarded: %s", exc)
+                IPC_PROTOCOL_ERRORS_TOTAL.labels(error_type="truncated").inc()
+                IPC_FRAMES_TOTAL.labels(direction="received", outcome="error").inc()
                 continue
             except (UnknownVersionError, MalformedEnvelopeError) as exc:
                 log.warning("IPC malformed frame discarded: %s", exc)
+                IPC_PROTOCOL_ERRORS_TOTAL.labels(error_type="malformed").inc()
+                IPC_FRAMES_TOTAL.labels(direction="received", outcome="error").inc()
                 continue
 
             try:
                 event = decode_envelope_body(body)
             except IPCError as exc:
                 log.warning("IPC decode error: %s", exc)
+                IPC_PROTOCOL_ERRORS_TOTAL.labels(error_type="malformed").inc()
+                IPC_FRAMES_TOTAL.labels(direction="received", outcome="error").inc()
                 continue
+
+            IPC_FRAMES_TOTAL.labels(direction="received", outcome="ok").inc()
 
             try:
                 self._queue.put_nowait(event)
+                PROCESSOR_QUEUE_DEPTH.set(self._queue.qsize())
             except asyncio.QueueFull:
                 self._drops += 1
+                PROCESSOR_EVENTS_DROPPED_TOTAL.labels(reason="queue_full").inc()
                 log.warning(
                     "Processor queue full — event dropped id=%s (total drops=%d)",
                     event.id,

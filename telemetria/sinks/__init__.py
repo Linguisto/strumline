@@ -89,9 +89,16 @@ _REGISTRY: dict[str, type[EventSink]] = {
     "null": NullSink,
 }
 
+# Providers loaded on first use to avoid importing optional heavy deps at module load.
+# The import happens inside get_sink(), so static analysis tools see no transitive
+# dependency from sinks/__init__ → sinks.loki until the function is actually called.
+_LAZY_PROVIDERS: dict[str, str] = {
+    "loki": "telemetria.sinks.loki.LokiSink",
+}
+
 
 def register_sink(name: str, cls: type[EventSink]) -> None:
-    """Register a new sink provider. Called by M3+ during app startup."""
+    """Register a new sink provider. Called externally when needed."""
     _REGISTRY[name] = cls
 
 
@@ -103,8 +110,16 @@ def get_sink(provider: str) -> EventSink:
     ValueError
         Unknown provider name.
     """
+    if provider not in _REGISTRY and provider in _LAZY_PROVIDERS:
+        import importlib
+
+        dotted = _LAZY_PROVIDERS[provider]
+        module_path, cls_name = dotted.rsplit(".", 1)
+        module = importlib.import_module(module_path)
+        _REGISTRY[provider] = getattr(module, cls_name)
+
     cls = _REGISTRY.get(provider)
     if cls is None:
-        known = ", ".join(sorted(_REGISTRY))
+        known = ", ".join(sorted(list(_REGISTRY) + list(_LAZY_PROVIDERS)))
         raise ValueError(f"Unknown SINK_PROVIDER={provider!r}. Known providers: {known}")
     return cls()

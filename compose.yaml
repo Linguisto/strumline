@@ -1,14 +1,7 @@
 name: telemetria
 
 # ---------------------------------------------------------------------------
-# One image, three process containers, one PostgreSQL, one disposable CLI.
-#
-# This is the example template — copy to compose.yaml in the project root:
-#
-#   cp docker/compose.example.yaml compose.yaml          (prod/base)
-#   cp docker/compose.dev.yaml docker-compose.override.yaml  (dev hot-reload)
-#
-# Or just run: make init.dev
+# One image, three process containers, PostgreSQL, Loki, Prometheus, Grafana.
 #
 # Build:    docker compose build
 # Start:    docker compose up -d
@@ -31,6 +24,12 @@ x-common-env: &common-env
   METRICS_ENABLED: "${METRICS_ENABLED:-true}"
   APP_TIMEZONE: "${APP_TIMEZONE:-}"
 
+x-sink-env: &sink-env
+  SINK_PROVIDER: "${SINK_PROVIDER:-loki}"
+  LOKI_URL: "${LOKI_URL:-http://loki:3100}"
+  LOKI_TIMEOUT_SECONDS: "${LOKI_TIMEOUT_SECONDS:-5}"
+  LOKI_COMPRESSION: "${LOKI_COMPRESSION:-gzip}"
+
 services:
 
   # --------------------------------------------------------------------------
@@ -44,15 +43,17 @@ services:
       target: ${TELEMETRIA_TARGET:-runtime}
     command: telemetria-api
     environment:
-      <<: [*common-env, *db-env]
+      <<: [ *common-env, *db-env ]
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python3", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: [
+        "CMD", "python3", "-c",
+        "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+      ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -70,7 +71,7 @@ services:
       target: ${TELEMETRIA_TARGET:-runtime}
     command: telemetria-ingest
     environment:
-      <<: [*common-env, *db-env, *ingest-db-env]
+      <<: [ *common-env, *db-env, *ingest-db-env ]
     ports:
       - "8001:8001"
     volumes:
@@ -79,8 +80,8 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python3", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      test: [ "CMD", "python3", "-c",
+              "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -98,7 +99,7 @@ services:
       target: ${TELEMETRIA_TARGET:-runtime}
     command: telemetria-processor
     environment:
-      <<: [*common-env, *db-env]
+      <<: [ *common-env, *db-env, *sink-env ]
     ports:
       - "127.0.0.1:8002:8002"
     volumes:
@@ -106,9 +107,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      loki:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "python3", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      test: [ "CMD", "python3", "-c",
+              "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -128,7 +131,7 @@ services:
     profiles:
       - cli
     environment:
-      <<: [*common-env, *db-env]
+      <<: [ *common-env, *db-env ]
     depends_on:
       postgres:
         condition: service_healthy
@@ -138,21 +141,74 @@ services:
   # PostgreSQL — control-plane metadata store
   # --------------------------------------------------------------------------
   postgres:
-    image: postgres:17
+    image: postgres:18
     environment:
       POSTGRES_DB: "${DB_NAME:-telemetria}"
       POSTGRES_USER: "${DB_USER:-telemetria}"
       POSTGRES_PASSWORD: "${DB_PASSWORD:-telemetria}"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-telemetria} -d ${DB_NAME:-telemetria}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-telemetria} -d ${DB_NAME:-telemetria}" ]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
     restart: unless-stopped
 
+  # --------------------------------------------------------------------------
+  # Loki — log aggregation backend for the default loki sink
+  # --------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:3.7.8
+    command: [ "-config.file=/etc/loki/local-config.yaml" ]
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Prometheus + Grafana — metrics and dashboards
+  #
+  # Prometheus: http://localhost:9090
+  # Grafana:    http://localhost:3000  (admin / admin)
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_USER:-john.doe}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-changeme}"
+    volumes:
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
 volumes:
   ipc-socket:
   postgres-data:
+  loki-data:
+  prometheus-data:
+  grafana-data:

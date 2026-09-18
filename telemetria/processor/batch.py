@@ -23,6 +23,14 @@ import random
 from typing import TYPE_CHECKING
 
 from telemetria.domain.events import EventBatch
+from telemetria.metrics import (
+    PROCESSOR_BATCH_DURATION_SECONDS,
+    PROCESSOR_BATCH_SIZE,
+    PROCESSOR_BATCHES_TOTAL,
+    PROCESSOR_EVENTS_DROPPED_TOTAL,
+    PROCESSOR_QUEUE_DEPTH,
+    PROCESSOR_SINK_WRITES_TOTAL,
+)
 from telemetria.sinks import EventSink, PermanentSinkError, RetryableSinkError
 
 if TYPE_CHECKING:
@@ -115,6 +123,7 @@ class BatchProcessor:
                 event = await asyncio.wait_for(self._queue.get(), timeout=timeout)
                 pending.append(event)
                 self._queue.task_done()
+                PROCESSOR_QUEUE_DEPTH.set(self._queue.qsize())
 
                 if deadline is None:
                     deadline = loop.time() + self._batch_max_wait
@@ -150,11 +159,19 @@ class BatchProcessor:
 
     async def _flush(self, events: list[Event]) -> None:
         batch = EventBatch(tuple(events))
+        sink_name = self._sink.name
+        start = asyncio.get_event_loop().time()
+
         for attempt in range(self._max_retries + 1):
             try:
                 await self._sink.write(batch)
+                duration = asyncio.get_event_loop().time() - start
                 self._batches_sent += 1
                 self._events_sent += len(batch)
+                PROCESSOR_BATCHES_TOTAL.labels(sink=sink_name).inc()
+                PROCESSOR_BATCH_SIZE.labels(sink=sink_name).observe(len(batch))
+                PROCESSOR_BATCH_DURATION_SECONDS.labels(sink=sink_name).observe(duration)
+                PROCESSOR_SINK_WRITES_TOTAL.labels(sink=sink_name, outcome="success").inc()
                 log.debug(
                     "Sink wrote %d events (batch=%d attempt=%d)",
                     len(batch),
@@ -163,6 +180,7 @@ class BatchProcessor:
                 )
                 return
             except RetryableSinkError as exc:
+                PROCESSOR_SINK_WRITES_TOTAL.labels(sink=sink_name, outcome="retryable").inc()
                 if attempt >= self._max_retries:
                     log.error(
                         "Sink retry exhausted after %d attempts, discarding %d events: %s",
@@ -171,6 +189,7 @@ class BatchProcessor:
                         exc,
                     )
                     self._events_dropped += len(batch)
+                    PROCESSOR_EVENTS_DROPPED_TOTAL.labels(reason="sink_retries_exhausted").inc()
                     return
                 delay = _retry_delay(attempt)
                 log.warning(
@@ -181,10 +200,13 @@ class BatchProcessor:
                 )
                 await asyncio.sleep(delay)
             except PermanentSinkError as exc:
+                PROCESSOR_SINK_WRITES_TOTAL.labels(sink=sink_name, outcome="permanent").inc()
                 log.error("Sink permanent error, discarding %d events: %s", len(batch), exc)
                 self._events_dropped += len(batch)
+                PROCESSOR_EVENTS_DROPPED_TOTAL.labels(reason="sink_permanent").inc()
                 return
             except Exception as exc:
                 log.error("Unexpected sink error, discarding %d events: %s", len(batch), exc)
                 self._events_dropped += len(batch)
+                PROCESSOR_EVENTS_DROPPED_TOTAL.labels(reason="sink_permanent").inc()
                 return
