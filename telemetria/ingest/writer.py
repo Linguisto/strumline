@@ -25,6 +25,7 @@ import random
 from typing import TYPE_CHECKING
 
 from telemetria.ipc.codec import encode_frame
+from telemetria.metrics import INGEST_IPC_RECONNECTS_TOTAL
 
 if TYPE_CHECKING:
     from telemetria.domain.events import Event
@@ -78,6 +79,7 @@ class IPCWriter:
             except Exception as exc:
                 log.warning("IPC writer error (attempt=%d): %s — reconnecting", attempt, exc)
                 await self._close_writer()
+                INGEST_IPC_RECONNECTS_TOTAL.inc()
                 delay = _backoff(attempt)
                 attempt += 1
                 await asyncio.sleep(delay)

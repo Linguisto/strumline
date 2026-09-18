@@ -148,3 +148,15 @@ class ProcessorSettings(_Base):
         if not (1 <= self.processor_port <= 65535):
             raise ValueError(f"PROCESSOR_PORT must be 1–65535, got {self.processor_port}")
         return self
+
+
+class LokiSettings(_Base):
+    """Settings for the Loki sink provider.
+
+    Read once in LokiSink.__init__; never call LokiSettings() deep in helpers.
+    """
+
+    loki_url: str = "http://loki:3100"
+    loki_tenant_id: str = ""  # empty means single-tenant (no X-Scope-OrgID header)
+    loki_timeout_seconds: float = 5.0
+    loki_compression: str = "gzip"  # "gzip" or "" (none)

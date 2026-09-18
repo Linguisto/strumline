@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Telemetria
+    orgId: 1
+    folder: Telemetria
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards

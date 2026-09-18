@@ -1,0 +1,197 @@
+{
+  "title": "Telemetria",
+  "uid": "telemetria-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Ingest — events accepted/sec",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(telemetria_ingest_events_accepted_total[1m])",
+          "legendFormat": "accepted/s"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Ingest — events dropped/sec",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(telemetria_ingest_events_dropped_total[1m])",
+          "legendFormat": "{{reason}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Ingest — queue depth",
+      "type": "gauge",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "telemetria_ingest_queue_depth / telemetria_ingest_queue_capacity * 100",
+          "legendFormat": "% full"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Processor — batches/sec",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 6, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(telemetria_processor_batches_total[1m])",
+          "legendFormat": "{{sink}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Processor — events dropped/sec",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 6, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(telemetria_processor_events_dropped_total[1m])",
+          "legendFormat": "{{reason}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Processor — sink write outcomes/sec",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 6, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(telemetria_processor_sink_writes_total[1m])",
+          "legendFormat": "{{sink}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "HTTP — request rate by process",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(telemetria_http_requests_total[1m])",
+          "legendFormat": "{{process}} {{route}} {{status_class}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "HTTP — P99 latency (s)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, rate(telemetria_http_request_duration_seconds_bucket[1m]))",
+          "legendFormat": "{{process}} {{route}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "IPC — frames/sec",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 18, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(telemetria_ipc_frames_total[1m])",
+          "legendFormat": "{{direction}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "IPC — protocol errors/sec",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 18, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(telemetria_ipc_protocol_errors_total[1m])",
+          "legendFormat": "{{error_type}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "DSN cache hit rate",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 18, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(telemetria_ingest_dsn_cache_hits_total[5m]) / (rate(telemetria_ingest_dsn_cache_hits_total[5m]) + rate(telemetria_ingest_dsn_cache_misses_total[5m])) * 100",
+          "legendFormat": "hit %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Logs (requires loki profile)",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{service=\"telemetria\"}",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "noValue": "Start the loki profile to see logs: docker compose --profile loki up -d"
+      }
+    }
+  ]
+}
