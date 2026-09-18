@@ -30,6 +30,9 @@ from telemetria.sinks import (
 _NOW = datetime(2026, 9, 18, 17, 0, 0, tzinfo=UTC)
 
 
+pytestmark = pytest.mark.unit
+
+
 def _make_event(**kwargs) -> Event:
     defaults = dict(
         id=uuid.uuid4(),

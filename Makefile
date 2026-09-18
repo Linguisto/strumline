@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help build build.dev up down install update init init.dev bash lint test migrate
+.PHONY: help build build.dev up down install update init init.dev bash lint test test-unit test-integration migrate
 
 IMAGE_TAG ?= dev
 
@@ -80,8 +80,14 @@ update: ## Rebuild image, restart services, run migrations
 lint: ## Run ruff, mypy, and import-linter
 	$(DC_EXEC) sh -c "ruff check telemetria/ tests/ && ruff format --check telemetria/ tests/ && mypy telemetria/ && lint-imports"
 
-test: ## Run the test suite
+test: ## Run the full test suite
 	$(DC_EXEC) pytest
+
+test.unit: ## Run unit tests only (no DB required)
+	$(DC_EXEC) pytest -m unit
+
+test.integration: ## Run integration tests only (requires DB)
+	$(DC_EXEC) pytest -m integration
 
 migrate: ## Run database migrations to head
 	$(DC_EXEC) telemetria migrate

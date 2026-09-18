@@ -14,28 +14,6 @@ jobs:
       matrix:
         python-version: ["3.14"]
 
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: telemetria
-          POSTGRES_PASSWORD: telemetria
-          POSTGRES_DB: telemetria
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U telemetria"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_NAME: telemetria
-      DB_USER: telemetria
-      DB_PASSWORD: telemetria
-
     steps:
       - uses: actions/checkout@v7
 
@@ -64,5 +42,5 @@ jobs:
       - name: import-linter — boundary check
         run: uv run lint-imports
 
-      - name: pytest
-        run: uv run pytest --tb=short
+      - name: pytest (unit tests only)
+        run: uv run pytest -m unit --tb=short

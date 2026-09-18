@@ -38,6 +38,9 @@ _UUID2 = uuid.UUID("00000000-0000-0000-0000-000000000001")
 _UUID3 = uuid.UUID("00000000-0000-0000-0000-000000000002")
 
 
+pytestmark = pytest.mark.unit
+
+
 def _make_event(**kwargs) -> Event:
     defaults = dict(
         id=_UUID1,

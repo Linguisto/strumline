@@ -18,6 +18,8 @@ from telemetria.api.server import create_app as create_api_app
 from telemetria.ingest.server import create_app as create_ingest_app
 from telemetria.processor.server import create_app as create_processor_app
 
+pytestmark = pytest.mark.unit
+
 
 def _expected_version() -> str:
     try:

@@ -24,6 +24,9 @@ from telemetria.domain.errors import (
 # ---------------------------------------------------------------------------
 
 
+pytestmark = pytest.mark.integration
+
+
 @pytest.mark.asyncio
 async def test_project_create_and_get(migrated_factory) -> None:
     async with migrated_factory() as session, session.begin():

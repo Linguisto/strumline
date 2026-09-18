@@ -16,6 +16,8 @@ from telemetria.control.dsns import DSNService
 from telemetria.control.projects import ProjectService
 from telemetria.ingest.resolver import DSN_CACHE_TTL, DSNResolver, DSNResolverError
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def resolver_factory(migrated_factory):
