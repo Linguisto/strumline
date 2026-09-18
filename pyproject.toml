@@ -56,6 +56,15 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "unit: fast, DB-free tests",
+    "integration: tests that require a running database",
+]
+
+# Named suites — invoke as: uv run pytest --co -q (list) or via make targets
+# make test-unit        → pytest -m unit
+# make test-integration → pytest -m integration  
+# make test             → pytest (all)
 
 [tool.importlinter]
 root_packages = ["telemetria"]

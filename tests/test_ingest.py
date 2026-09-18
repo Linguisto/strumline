@@ -41,6 +41,9 @@ _RESOLVED = ResolvedDSN(
 _DSN_HEADER = {"x-telemetria-dsn": "valid-key", "content-type": "application/json"}
 
 
+pytestmark = pytest.mark.unit
+
+
 def _make_app(
     resolver_result: ResolvedDSN | Exception = _RESOLVED,
     queue_size: int = 10_000,

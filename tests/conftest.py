@@ -1,8 +1,13 @@
 """Test database setup.
 
-Uses a dedicated test database configured via TESTING_DB_* env vars (see
-.env.example).  Migrations are the same as production — only the target DB
-differs.  Tables are truncated once per test session for a clean slate.
+Integration tests inherit from ``DatabaseTestCase`` to declare they need a DB.
+Unit tests are plain classes or functions with no base class.
+
+    class TestMyFeature(DatabaseTestCase):
+        async def test_something(self, migrated_factory): ...
+
+Configuration: DB_HOST / DB_PORT / DB_USER / DB_PASSWORD (same as the app).
+Override with TESTING_DB_* if needed. DB name is always ``test_db``.
 """
 
 from __future__ import annotations
@@ -21,9 +26,14 @@ pg_url: str = f"postgresql+asyncpg://{_USER}:{_PASSWORD}@{_HOST}:{_PORT}/{_DB}"
 pg_sync_url: str = f"postgresql+psycopg2://{_USER}:{_PASSWORD}@{_HOST}:{_PORT}/{_DB}"
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _boot_test_db() -> None:
-    """Create test DB if absent, migrate to head, truncate data."""
+# ---------------------------------------------------------------------------
+# One-time DB boot (session-scoped, called lazily by DatabaseTestCase)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def _db_boot() -> None:
+    """Create test_db if absent, migrate to head, truncate data."""
     import psycopg2
     from psycopg2 import sql
     from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
@@ -40,9 +50,8 @@ def _boot_test_db() -> None:
             cur.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(_DB)))
         c.close()
 
-    from alembic.config import Config
-
     from alembic import command
+    from alembic.config import Config
 
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", pg_sync_url)
@@ -56,7 +65,22 @@ def _boot_test_db() -> None:
 
 
 @pytest.fixture
-def migrated_factory():
+def migrated_factory(_db_boot: None):
     from telemetria.db.session import make_session_factory
 
     return make_session_factory(pg_url)
+
+
+# ---------------------------------------------------------------------------
+# Base class for integration tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_db_boot")
+class DatabaseTestCase:
+    """Inherit from this class to declare that a test requires a database.
+
+    The database is booted once per session (migrations + truncate).
+    Tests that don't inherit this class never touch the DB.
+    """

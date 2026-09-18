@@ -17,6 +17,8 @@ import tests.conftest as conf
 from telemetria.db.models import ProjectModel
 from telemetria.db.session import make_session_factory
 
+pytestmark = pytest.mark.integration
+
 
 def test_migration_creates_tables() -> None:
     engine = create_engine(conf.pg_sync_url)
