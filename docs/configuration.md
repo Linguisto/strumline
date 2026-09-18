@@ -33,17 +33,47 @@ All settings are read at process startup. Changes require a process restart.
 
 ## Processor process (`telemetria-processor`)
 
-| Variable                  | Default                        | Secret | Description                                          |
-|---------------------------|--------------------------------|--------|------------------------------------------------------|
-| `PROCESSOR_HOST`          | `0.0.0.0`                      | no     | Bind address                                         |
-| `PROCESSOR_PORT`          | `8002`                         | no     | Listen port (1–65535)                                |
-| `IPC_SOCKET_PATH`         | `/var/run/telemetria/ipc.sock` | no     | Unix-domain socket path shared with ingest           |
-| `SINK_PROVIDER`           | `null`                         | no     | `null` \| `loki` — selects the event sink            |
-| `BATCH_MAX_SIZE`          | `500`                          | no     | Flush batch when this many events accumulate         |
-| `BATCH_MAX_WAIT_SECONDS`  | `1.0`                          | no     | Flush batch after this many seconds even if not full |
-| `SINK_MAX_RETRIES`        | `3`                            | no     | Maximum retry attempts for transient sink errors     |
-| `SINK_RETRY_BASE_SECONDS` | `0.25`                         | no     | Exponential backoff base delay (seconds)             |
-| `SINK_RETRY_MAX_SECONDS`  | `10.0`                         | no     | Exponential backoff cap (seconds)                    |
+| Variable          | Default                        | Secret | Description                                |
+|-------------------|--------------------------------|---------|--------------------------------------------|
+| `PROCESSOR_HOST`  | `0.0.0.0`                      | no      | Bind address                               |
+| `PROCESSOR_PORT`  | `8002`                         | no      | Listen port (1–65535)                      |
+| `IPC_SOCKET_PATH` | `/var/run/telemetria/ipc.sock` | no      | Unix-domain socket path shared with ingest |
+| `SINK_PROVIDER`   | `loki`                         | no      | `loki` \| `null` — selects the event sink  |
+
+## Loki sink (`SINK_PROVIDER=loki`)
+
+| Variable               | Default            | Secret | Description                                                    |
+|------------------------|--------------------|--------|----------------------------------------------------------------|
+| `LOKI_URL`             | `http://loki:3100` | no     | Loki push API base URL                                         |
+| `LOKI_TIMEOUT_SECONDS` | `5.0`              | no     | HTTP request timeout; exceeded → retryable error               |
+| `LOKI_COMPRESSION`     | `gzip`             | no     | `gzip` compresses the push body; empty string sends plain JSON |
+
+See [`docs/sinks.md`](sinks.md) for the full sink contract, failure taxonomy, and how to add a new provider.
+
+## Advanced configuration and fine-tuning
+
+These variables have sensible defaults and are omitted from `.env.example`. Set them only when you need to override the defaults.
+
+### Loki multi-tenancy
+
+| Variable         | Default | Secret | Description                                                              |
+|------------------|---------|--------|--------------------------------------------------------------------------|
+| `LOKI_TENANT_ID` | `` (none) | no   | Sets `X-Scope-OrgID` on every push request. Leave empty for single-tenant Loki. |
+
+### Processor batch tuning
+
+| Variable                 | Default | Secret | Description                                          |
+|--------------------------|---------|--------|------------------------------------------------------|
+| `BATCH_MAX_SIZE`         | `500`   | no     | Flush when this many events accumulate               |
+| `BATCH_MAX_WAIT_SECONDS` | `1.0`   | no     | Flush after this many seconds even if batch not full |
+
+### Sink retry policy
+
+| Variable                  | Default | Secret | Description                              |
+|---------------------------|---------|--------|------------------------------------------|
+| `SINK_MAX_RETRIES`        | `3`     | no     | Maximum retry attempts for transient errors |
+| `SINK_RETRY_BASE_SECONDS` | `0.25`  | no     | Exponential backoff base delay (seconds) |
+| `SINK_RETRY_MAX_SECONDS`  | `10.0`  | no     | Exponential backoff cap (seconds)        |
 
 ## Database
 

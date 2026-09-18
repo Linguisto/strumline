@@ -20,6 +20,7 @@ from fastapi import FastAPI
 
 from telemetria.config import APISettings, CommonSettings
 from telemetria.logging_config import configure_logging
+from telemetria.metrics.middleware import add_metrics
 
 log = logging.getLogger(__name__)
 
@@ -33,8 +34,11 @@ def _get_version() -> str:
         return "unknown"
 
 
-def create_app() -> FastAPI:
+def create_app(settings: CommonSettings | None = None) -> FastAPI:
     """Create and configure the FastAPI application."""
+    if settings is None:
+        settings = CommonSettings()
+
     application = FastAPI(
         title="Telemetria API", version=_get_version(), docs_url=None, redoc_url=None
     )
@@ -43,6 +47,7 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"process": _PROCESS, "version": _get_version(), "status": "ok"}
 
+    add_metrics(application, process=_PROCESS, enabled=settings.metrics_enabled)
     return application
 
 

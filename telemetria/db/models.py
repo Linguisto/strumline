@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -47,10 +47,7 @@ class AppModel(Base, TimestampMixin):
         "DSNModel", back_populates="app", cascade="all, delete-orphan"
     )
 
-    __table_args__ = (
-        # slug is unique within a project, not globally
-        {"schema": None},
-    )
+    __table_args__ = (UniqueConstraint("project_id", "slug", name="uq_apps_project_slug"),)
 
 
 class DSNModel(Base):

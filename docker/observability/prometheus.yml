@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: telemetria-api
+    static_configs:
+      - targets: ["api:8000"]
+    metrics_path: /metrics
+
+  - job_name: telemetria-ingest
+    static_configs:
+      - targets: ["ingest:8001"]
+    metrics_path: /metrics
+
+  - job_name: telemetria-processor
+    static_configs:
+      - targets: ["processor:8002"]
+    metrics_path: /metrics

@@ -40,7 +40,3 @@ Thumbs.db
 
 # Docker
 *.log
-
-# Dev compose files (generated from docker/ templates via make init.dev)
-compose.yaml
-docker-compose.override.yaml
