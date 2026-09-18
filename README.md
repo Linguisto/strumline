@@ -5,13 +5,15 @@ Non-blocking, lightning-fast structured telemetry collector.
 ## Quickstart
 
 ```bash
-make install        # init.dev + build dev image + start stack + run migrations
+make up             # build dev image + start stack + run migrations
 ```
 
 Services after startup:
 - API → http://localhost:8000/health
 - Ingest → http://localhost:8001/health
 - Processor → http://localhost:8002/health
+- Prometheus → http://localhost:9090
+- Grafana → http://localhost:3000
 
 Code changes in `telemetria/` reload automatically inside the containers.
 
@@ -47,10 +49,6 @@ One image, three containers — `telemetria-api`, `telemetria-ingest`, `telemetr
 
 Ingest and processor share a Unix-domain socket via a named volume (`/var/run/telemetria/`). PostgreSQL stores control-plane metadata only — raw telemetry never touches the database.
 
-Compose files:
-- `docker/compose.example.yaml` → copy to `compose.yaml` (base stack)
-- `docker/compose.dev.yaml` → copy to `docker-compose.override.yaml` (hot reload + dev image)
-
 ## Requirements
 
 - Docker with Compose v2
@@ -60,7 +58,11 @@ A local Python 3.14+ environment with `uv` is needed only for IDE tooling or `DC
 
 ## Docs
 
-- [Architecture & topology](docs/architecture/decisions.md)
+- [Architecture overview](docs/architecture/overview.md)
+- [Architecture decisions](docs/architecture/decisions.md)
 - [Configuration reference](docs/configuration.md)
 - [Ingest HTTP contract](docs/api/ingest-contract.md)
 - [IPC protocol](docs/ipc-protocol.md)
+- [Sinks](docs/sinks.md)
+- [Observability](docs/observability.md)
+- [Observability recipes](docs/observability-recipes.md)

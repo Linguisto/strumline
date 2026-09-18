@@ -38,6 +38,15 @@ from telemetria.domain.events import Event
 from telemetria.ingest.resolver import DSNResolver, DSNResolverError
 from telemetria.ingest.writer import IPCWriter
 from telemetria.logging_config import configure_logging
+from telemetria.metrics import (
+    INGEST_DSN_CACHE_HITS_TOTAL,
+    INGEST_DSN_CACHE_MISSES_TOTAL,
+    INGEST_EVENTS_ACCEPTED_TOTAL,
+    INGEST_EVENTS_DROPPED_TOTAL,
+    INGEST_QUEUE_CAPACITY,
+    INGEST_QUEUE_DEPTH,
+)
+from telemetria.metrics.middleware import add_metrics
 
 log = logging.getLogger(__name__)
 
@@ -155,17 +164,23 @@ def _parse_json(body: bytes, model: type[BaseModel]) -> Any:
 
 async def _resolve_dsn(resolver: DSNResolver, key: str) -> Any:
     try:
-        return await resolver.resolve(key)
+        result = await resolver.resolve(key)
+        INGEST_DSN_CACHE_HITS_TOTAL.inc()
+        return result
     except DSNResolverError:
+        INGEST_DSN_CACHE_MISSES_TOTAL.inc()
         raise HTTPException(status_code=401, detail="Invalid or revoked DSN") from None
 
 
 def _enqueue(queue: asyncio.Queue[Event], event: Event) -> int:
     try:
         queue.put_nowait(event)
+        INGEST_EVENTS_ACCEPTED_TOTAL.inc()
+        INGEST_QUEUE_DEPTH.set(queue.qsize())
         return 0
     except asyncio.QueueFull:
         log.warning("ingest queue full — event dropped id=%s", event.id)
+        INGEST_EVENTS_DROPPED_TOTAL.labels(reason="queue_full").inc()
         return 1
 
 
@@ -177,14 +192,20 @@ def _enqueue(queue: asyncio.Queue[Event], event: Event) -> int:
 def create_app(
     settings: IngestSettings | None = None,
     db_settings: DatabaseSettings | None = None,
+    common_settings: CommonSettings | None = None,
 ) -> FastAPI:
     """Create and configure the FastAPI ingest application."""
     if settings is None:
         settings = IngestSettings()
     if db_settings is None:
         db_settings = DatabaseSettings()
+    if common_settings is None:
+        common_settings = CommonSettings()
 
     queue: asyncio.Queue[Event] = asyncio.Queue(maxsize=settings.queue_size)
+
+    # Publish static capacity once at startup
+    INGEST_QUEUE_CAPACITY.set(settings.queue_size)
 
     ingest_url = db_settings.ingest_database_url
     factory = make_session_factory(ingest_url if ingest_url else db_settings.database_url)
@@ -285,6 +306,7 @@ def create_app(
             enqueued += 1 - d
         return IngestResponse(enqueued=enqueued, dropped=dropped)
 
+    add_metrics(application, process=_PROCESS, enabled=common_settings.metrics_enabled)
     return application
 
 
