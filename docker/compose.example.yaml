@@ -1,0 +1,158 @@
+name: telemetria
+
+# ---------------------------------------------------------------------------
+# One image, three process containers, one PostgreSQL, one disposable CLI.
+#
+# This is the example template — copy to compose.yaml in the project root:
+#
+#   cp docker/compose.example.yaml compose.yaml          (prod/base)
+#   cp docker/compose.dev.yaml docker-compose.override.yaml  (dev hot-reload)
+#
+# Or just run: make init.dev
+#
+# Build:    docker compose build
+# Start:    docker compose up -d
+# CLI:      docker compose run --rm telemetria-cli telemetria <command>
+# ---------------------------------------------------------------------------
+
+x-db-env: &db-env
+  DB_HOST: "${DB_HOST:-postgres}"
+  DB_PORT: "${DB_PORT:-5432}"
+  DB_NAME: "${DB_NAME:-telemetria}"
+  DB_USER: "${DB_USER:-telemetria}"
+  DB_PASSWORD: "${DB_PASSWORD:-telemetria}"
+
+x-ingest-db-env: &ingest-db-env
+  INGEST_DB_USER: "${INGEST_DB_USER:-telemetria_ingest}"
+  INGEST_DB_PASSWORD: "${INGEST_DB_PASSWORD:-}"
+
+x-common-env: &common-env
+  LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+  METRICS_ENABLED: "${METRICS_ENABLED:-true}"
+  APP_TIMEZONE: "${APP_TIMEZONE:-}"
+
+services:
+
+  # --------------------------------------------------------------------------
+  # API — control plane health endpoint (:8000)
+  # --------------------------------------------------------------------------
+  api:
+    image: telemetria:${TELEMETRIA_IMAGE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: ${TELEMETRIA_TARGET:-runtime}
+    command: telemetria-api
+    environment:
+      <<: [*common-env, *db-env]
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Ingest — HTTP receiver and IPC writer (:8001)
+  # --------------------------------------------------------------------------
+  ingest:
+    image: telemetria:${TELEMETRIA_IMAGE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: ${TELEMETRIA_TARGET:-runtime}
+    command: telemetria-ingest
+    environment:
+      <<: [*common-env, *db-env, *ingest-db-env]
+    ports:
+      - "8001:8001"
+    volumes:
+      - ipc-socket:/var/run/telemetria
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Processor — IPC reader, batching, sink dispatch (:8002, localhost only)
+  # --------------------------------------------------------------------------
+  processor:
+    image: telemetria:${TELEMETRIA_IMAGE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: ${TELEMETRIA_TARGET:-runtime}
+    command: telemetria-processor
+    environment:
+      <<: [*common-env, *db-env]
+    ports:
+      - "127.0.0.1:8002:8002"
+    volumes:
+      - ipc-socket:/var/run/telemetria
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Disposable CLI — run migrations and control-plane commands
+  # Usage: docker compose run --rm telemetria-cli telemetria <command>
+  # --------------------------------------------------------------------------
+  telemetria-cli:
+    image: telemetria:${TELEMETRIA_IMAGE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: ${TELEMETRIA_TARGET:-runtime}
+    profiles:
+      - cli
+    environment:
+      <<: [*common-env, *db-env]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # --------------------------------------------------------------------------
+  # PostgreSQL — control-plane metadata store
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: "${DB_NAME:-telemetria}"
+      POSTGRES_USER: "${DB_USER:-telemetria}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-telemetria}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-telemetria} -d ${DB_NAME:-telemetria}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  ipc-socket:
+  postgres-data:
