@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling>=1.32.3"]
+build-backend = "hatchling.build"
+
+[project]
+name = "telemetria"
+version = "0.1.0"
+description = "Non-blocking, lightning-fast structured telemetry collector"
+readme = "README.md"
+requires-python = ">=3.14"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.53.0",
+    "pydantic>=2.13.5",
+    "pydantic-settings>=2.15.0",
+    "python-json-logger>=4.2.0",
+    "typer>=0.27.2",
+    "sqlalchemy[asyncio]>=2.0.54",
+    "asyncpg>=0.31.0",
+    "alembic>=1.20.0",
+]
+
+[project.scripts]
+telemetria = "telemetria.cli.main:app"
+telemetria-api = "telemetria.api.server:main"
+telemetria-ingest = "telemetria.ingest.server:main"
+telemetria-processor = "telemetria.processor.server:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.8",
+    "mypy>=2.3.1",
+    "import-linter>=2.15",
+    "httpx2>=2.13.0",
+    "psycopg2-binary>=2.9.13",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["telemetria"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.importlinter]
+root_packages = ["telemetria"]
+
+[[tool.importlinter.contracts]]
+name = "ipc does not import process packages"
+type = "forbidden"
+source_modules = ["telemetria.ipc"]
+forbidden_modules = [
+    "telemetria.api",
+    "telemetria.cli",
+    "telemetria.ingest",
+    "telemetria.processor",
+]
+
+[[tool.importlinter.contracts]]
+name = "domain is pure — no I/O dependencies"
+type = "forbidden"
+source_modules = ["telemetria.domain"]
+forbidden_modules = [
+    "telemetria.api",
+    "telemetria.cli",
+    "telemetria.ingest",
+    "telemetria.processor",
+    "telemetria.ipc",
+    "telemetria.metrics",
+]
+
+[[tool.importlinter.contracts]]
+name = "processor does not import sink implementations directly"
+type = "forbidden"
+source_modules = ["telemetria.processor"]
+forbidden_modules = [
+    "telemetria.sinks.loki",
+]
