@@ -415,9 +415,7 @@ def create_app(
                     if name not in schemas:
                         schemas[name] = defn
                 # Rewrite local $defs refs to components/schemas refs
-                raw = json.dumps(model_schema).replace(
-                    '"#/$defs/', '"#/components/schemas/'
-                )
+                raw = json.dumps(model_schema).replace('"#/$defs/', '"#/components/schemas/')
                 schemas[model.__name__] = json.loads(raw)
 
             application.openapi_schema = schema
