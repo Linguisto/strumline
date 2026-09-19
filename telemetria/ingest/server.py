@@ -35,12 +35,12 @@ from pydantic import BaseModel, Field
 from telemetria.config import CommonSettings, DatabaseSettings, IngestSettings
 from telemetria.db.session import make_session_factory
 from telemetria.domain.events import Event
-from telemetria.ingest.resolver import DSNResolver, DSNResolverError
+from telemetria.ingest.resolver import AuthTokenResolver, AuthTokenResolverError
 from telemetria.ingest.writer import IPCWriter
 from telemetria.logging_config import configure_logging
 from telemetria.metrics import (
-    INGEST_DSN_CACHE_HITS_TOTAL,
-    INGEST_DSN_CACHE_MISSES_TOTAL,
+    INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL,
+    INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL,
     INGEST_EVENTS_ACCEPTED_TOTAL,
     INGEST_EVENTS_DROPPED_TOTAL,
     INGEST_QUEUE_CAPACITY,
@@ -67,8 +67,18 @@ def _get_version() -> str:
 
 
 class EventRequest(BaseModel):
-    timestamp: str | None = None
-    level: str = "info"
+    timestamp: str | float | None = Field(
+        default=None,
+        description=(
+            "Event timestamp. ISO 8601 with Z or UTC offset (e.g. '2026-09-18T17:00:00Z'), "
+            "or Unix timestamp in seconds (e.g. 1726668000 or 1726668000.123). "
+            "Missing, naive, or malformed values fall back to server receipt time."
+        ),
+    )
+    level: str = Field(
+        default="info",
+        json_schema_extra={"enum": ["debug", "info", "warn", "error", "fatal"]},
+    )
     message: str
     payload: dict[str, Any] = Field(default_factory=dict)
 
@@ -98,7 +108,14 @@ def _check_nesting(obj: Any, depth: int = 0) -> None:
             _check_nesting(v, depth + 1)
 
 
-def _parse_timestamp(value: str | None, received_at: datetime) -> datetime:
+def _parse_timestamp(value: str | float | None, received_at: datetime) -> datetime:
+    if value is None:
+        return received_at
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value), tz=UTC)
+        except ValueError, OverflowError, OSError:
+            return received_at
     if not value:
         return received_at
     try:
@@ -162,14 +179,14 @@ def _parse_json(body: bytes, model: type[BaseModel]) -> Any:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-async def _resolve_dsn(resolver: DSNResolver, key: str) -> Any:
+async def _resolve_token(resolver: AuthTokenResolver, key: str) -> Any:
     try:
         result = await resolver.resolve(key)
-        INGEST_DSN_CACHE_HITS_TOTAL.inc()
+        INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL.inc()
         return result
-    except DSNResolverError:
-        INGEST_DSN_CACHE_MISSES_TOTAL.inc()
-        raise HTTPException(status_code=401, detail="Invalid or revoked DSN") from None
+    except AuthTokenResolverError:
+        INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL.inc()
+        raise HTTPException(status_code=401, detail="Invalid or revoked auth token") from None
 
 
 def _enqueue(queue: asyncio.Queue[Event], event: Event) -> int:
@@ -209,7 +226,7 @@ def create_app(
 
     ingest_url = db_settings.ingest_database_url
     factory = make_session_factory(ingest_url if ingest_url else db_settings.database_url)
-    resolver = DSNResolver(factory)
+    resolver = AuthTokenResolver(factory, app_key=common_settings.app_key)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
@@ -230,6 +247,7 @@ def create_app(
         version=_get_version(),
         docs_url=None,
         redoc_url=None,
+        openapi_url="/openapi.json" if settings.api_docs_enabled else None,
         lifespan=lifespan,
     )
 
@@ -238,19 +256,52 @@ def create_app(
     application.state.resolver = resolver
     application.state.settings = settings
 
-    @application.get("/health")
+    @application.get("/health", tags=["System"])
     async def health() -> dict[str, str]:
         return {"process": _PROCESS, "version": _get_version(), "status": "ok"}
 
-    @application.post("/v1/ingest", status_code=202)
+    if settings.api_docs_enabled:
+        from fastapi.responses import HTMLResponse
+        from scalar_fastapi import get_scalar_api_reference
+
+        @application.get("/", include_in_schema=False)
+        async def scalar_docs() -> HTMLResponse:
+            return get_scalar_api_reference(
+                openapi_url="/openapi.json",
+                title="Telemetria Ingest",
+            )
+
+    @application.post(
+        "/v1/ingest",
+        status_code=202,
+        tags=["Ingest"],
+        summary="Ingest a single event",
+        response_model=IngestResponse,
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/EventRequest"},
+                        "example": {
+                            "timestamp": "2026-09-18T17:00:00Z",
+                            "level": "info",
+                            "message": "Payment processed",
+                            "payload": {"order_id": "abc123", "amount": 99.99},
+                        },
+                    }
+                },
+            }
+        },
+    )
     async def ingest_single(
         request: Request,
-        x_telemetria_dsn: str = Header(..., alias="x-telemetria-dsn"),
+        x_telemetria_token: str = Header(..., alias="x-telemetria-token"),
     ) -> IngestResponse:
         _check_content_type(request)
         body = await _read_body(request, application.state.settings.max_payload_bytes)
         event_req = _parse_json(body, EventRequest)
-        resolved = await _resolve_dsn(application.state.resolver, x_telemetria_dsn)
+        resolved = await _resolve_token(application.state.resolver, x_telemetria_token)
         received_at = datetime.now(tz=UTC)
         try:
             event = _build_event(
@@ -266,10 +317,42 @@ def create_app(
         dropped = _enqueue(application.state.queue, event)
         return IngestResponse(enqueued=1 - dropped, dropped=dropped)
 
-    @application.post("/v1/ingest/batch", status_code=202)
+    @application.post(
+        "/v1/ingest/batch",
+        status_code=202,
+        tags=["Ingest"],
+        summary="Ingest a batch of events",
+        response_model=IngestResponse,
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/BatchRequest"},
+                        "example": {
+                            "events": [
+                                {
+                                    "timestamp": "2026-09-18T17:00:00Z",
+                                    "level": "info",
+                                    "message": "User signed in",
+                                    "payload": {"user_id": 42},
+                                },
+                                {
+                                    "timestamp": "2026-09-18T17:00:01Z",
+                                    "level": "warn",
+                                    "message": "Slow query detected",
+                                    "payload": {"duration_ms": 1450},
+                                },
+                            ]
+                        },
+                    }
+                },
+            }
+        },
+    )
     async def ingest_batch(
         request: Request,
-        x_telemetria_dsn: str = Header(..., alias="x-telemetria-dsn"),
+        x_telemetria_token: str = Header(..., alias="x-telemetria-token"),
     ) -> IngestResponse:
         _check_content_type(request)
         body = await _read_body(request, application.state.settings.max_payload_bytes)
@@ -282,7 +365,7 @@ def create_app(
                     f" ({application.state.settings.max_batch_events})"
                 ),
             )
-        resolved = await _resolve_dsn(application.state.resolver, x_telemetria_dsn)
+        resolved = await _resolve_token(application.state.resolver, x_telemetria_token)
         received_at = datetime.now(tz=UTC)
         events: list[Event] = []
         for req in batch_req.events:
@@ -307,6 +390,41 @@ def create_app(
         return IngestResponse(enqueued=enqueued, dropped=dropped)
 
     add_metrics(application, process=_PROCESS, enabled=common_settings.metrics_enabled)
+
+    # Register Pydantic models as reusable OpenAPI components so Scalar shows
+    # them in the Models sidebar and links to them from route schemas.
+    if settings.api_docs_enabled:
+        from fastapi.openapi.utils import get_openapi
+
+        def _custom_openapi() -> dict[str, Any]:
+            if application.openapi_schema:
+                return application.openapi_schema
+            schema = get_openapi(
+                title=application.title,
+                version=application.version,
+                routes=application.routes,
+            )
+            components = schema.setdefault("components", {})
+            schemas = components.setdefault("schemas", {})
+
+            # Register top-level models and hoist any $defs to components/schemas
+            for model in (EventRequest, BatchRequest, IngestResponse):
+                model_schema = model.model_json_schema()
+                # Hoist nested $defs into top-level components
+                for name, defn in model_schema.pop("$defs", {}).items():
+                    if name not in schemas:
+                        schemas[name] = defn
+                # Rewrite local $defs refs to components/schemas refs
+                raw = json.dumps(model_schema).replace(
+                    '"#/$defs/', '"#/components/schemas/'
+                )
+                schemas[model.__name__] = json.loads(raw)
+
+            application.openapi_schema = schema
+            return schema
+
+        application.openapi = _custom_openapi  # type: ignore[method-assign]
+
     return application
 
 

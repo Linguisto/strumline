@@ -23,29 +23,29 @@ import pytest
 from httpx2 import ASGITransport, AsyncClient
 
 from telemetria.config import IngestSettings
-from telemetria.ingest.resolver import DSNResolverError, ResolvedDSN
+from telemetria.ingest.resolver import AuthTokenResolverError, ResolvedToken
 from telemetria.ingest.server import create_app
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
-_RESOLVED = ResolvedDSN(
-    dsn_id="dsn-id",
+_RESOLVED = ResolvedToken(
+    token_id="token-id",
     app_id="00000000-0000-0000-0000-000000000002",
     app_slug="my-app",
     project_id="00000000-0000-0000-0000-000000000001",
     project_slug="my-proj",
 )
 
-_DSN_HEADER = {"x-telemetria-dsn": "valid-key", "content-type": "application/json"}
+_TOKEN_HEADER = {"x-telemetria-token": "valid-key", "content-type": "application/json"}
 
 
 pytestmark = pytest.mark.unit
 
 
 def _make_app(
-    resolver_result: ResolvedDSN | Exception = _RESOLVED,
+    resolver_result: ResolvedToken | Exception = _RESOLVED,
     queue_size: int = 10_000,
     max_payload_bytes: int = 1 * 1024 * 1024,
     max_batch_events: int = 300,
@@ -80,7 +80,7 @@ def valid_event():
 async def test_single_event_202(valid_event):
     app = _make_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        r = await client.post("/v1/ingest", json=valid_event, headers=_DSN_HEADER)
+        r = await client.post("/v1/ingest", json=valid_event, headers=_TOKEN_HEADER)
     assert r.status_code == 202
     body = r.json()
     assert body["enqueued"] == 1
@@ -99,7 +99,7 @@ async def test_batch_202(valid_event):
         r = await client.post(
             "/v1/ingest/batch",
             json={"events": [valid_event, valid_event]},
-            headers=_DSN_HEADER,
+            headers=_TOKEN_HEADER,
         )
     assert r.status_code == 202
     body = r.json()
@@ -119,7 +119,7 @@ async def test_byte_limit_413():
         r = await client.post(
             "/v1/ingest",
             content=b"x" * 100,
-            headers={**_DSN_HEADER},
+            headers={**_TOKEN_HEADER},
         )
     assert r.status_code == 413
 
@@ -136,7 +136,7 @@ async def test_batch_size_limit_422(valid_event):
         r = await client.post(
             "/v1/ingest/batch",
             json={"events": [valid_event] * 3},
-            headers=_DSN_HEADER,
+            headers=_TOKEN_HEADER,
         )
     assert r.status_code == 422
 
@@ -153,7 +153,7 @@ async def test_wrong_content_type_415(valid_event):
         r = await client.post(
             "/v1/ingest",
             content=json.dumps(valid_event).encode(),
-            headers={"x-telemetria-dsn": "key", "content-type": "text/plain"},
+            headers={"x-telemetria-token": "key", "content-type": "text/plain"},
         )
     assert r.status_code == 415
 
@@ -170,21 +170,21 @@ async def test_invalid_json_400():
         r = await client.post(
             "/v1/ingest",
             content=b"not-json",
-            headers=_DSN_HEADER,
+            headers=_TOKEN_HEADER,
         )
     assert r.status_code == 400
 
 
 # ---------------------------------------------------------------------------
-# Unknown / revoked DSN → 401
+# Unknown / revoked auth token → 401
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_unknown_dsn_401(valid_event):
-    app = _make_app(resolver_result=DSNResolverError("unknown"))
+async def test_unknown_token_401(valid_event):
+    app = _make_app(resolver_result=AuthTokenResolverError("unknown"))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        r = await client.post("/v1/ingest", json=valid_event, headers=_DSN_HEADER)
+        r = await client.post("/v1/ingest", json=valid_event, headers=_TOKEN_HEADER)
     assert r.status_code == 401
 
 
@@ -198,12 +198,12 @@ async def test_queue_full_drops(valid_event):
     app = _make_app(queue_size=1)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # First event fills the queue
-        r1 = await client.post("/v1/ingest", json=valid_event, headers=_DSN_HEADER)
+        r1 = await client.post("/v1/ingest", json=valid_event, headers=_TOKEN_HEADER)
         assert r1.status_code == 202
         assert r1.json()["enqueued"] == 1
 
         # Second event is dropped
-        r2 = await client.post("/v1/ingest", json=valid_event, headers=_DSN_HEADER)
+        r2 = await client.post("/v1/ingest", json=valid_event, headers=_TOKEN_HEADER)
         assert r2.status_code == 202
         assert r2.json()["dropped"] == 1
 
@@ -227,7 +227,7 @@ async def test_batch_validation_failure_enqueues_zero():
     initial_size = queue.qsize()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        r = await client.post("/v1/ingest/batch", json=bad_batch, headers=_DSN_HEADER)
+        r = await client.post("/v1/ingest/batch", json=bad_batch, headers=_TOKEN_HEADER)
 
     assert r.status_code == 400
     # Queue must be unchanged — zero events from a failed batch
@@ -244,7 +244,7 @@ async def test_naive_timestamp_falls_back(valid_event):
     app = _make_app()
     event_with_naive = {**valid_event, "timestamp": "2026-09-18T17:00:00"}  # no Z or offset
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        r = await client.post("/v1/ingest", json=event_with_naive, headers=_DSN_HEADER)
+        r = await client.post("/v1/ingest", json=event_with_naive, headers=_TOKEN_HEADER)
     assert r.status_code == 202
 
 
@@ -253,5 +253,5 @@ async def test_missing_timestamp_falls_back():
     app = _make_app()
     event_no_ts = {"level": "warn", "message": "no timestamp", "payload": {}}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        r = await client.post("/v1/ingest", json=event_no_ts, headers=_DSN_HEADER)
+        r = await client.post("/v1/ingest", json=event_no_ts, headers=_TOKEN_HEADER)
     assert r.status_code == 202

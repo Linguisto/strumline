@@ -1,6 +1,6 @@
 """Domain entities and errors — pure Python, no I/O dependencies."""
 
-from telemetria.domain.entities import DSN, App, Project
+from telemetria.domain.entities import App, AuthToken, Project, hash_key
 from telemetria.domain.errors import (
     AlreadyRevokedError,
     ConflictError,
@@ -13,8 +13,9 @@ from telemetria.domain.events import Event, EventBatch
 
 __all__ = [
     "App",
-    "DSN",
+    "AuthToken",
     "Project",
+    "hash_key",
     "AlreadyRevokedError",
     "ConflictError",
     "NotFoundError",

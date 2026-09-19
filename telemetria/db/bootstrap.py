@@ -9,7 +9,7 @@ Or via Compose:
     docker compose run --rm telemetria-cli python -m telemetria.db.bootstrap
 
 Creates ``telemetria_ingest`` with SELECT-only access to the ``dsns`` and
-``apps`` tables (sufficient for DSN resolution). Sets a random password and
+``apps`` tables (sufficient for auth token resolution). Sets a random password and
 prints the vars to add to ``.env``.
 """
 
@@ -51,14 +51,14 @@ def bootstrap() -> None:
 
         cur.execute(f"GRANT CONNECT ON DATABASE {db} TO {INGEST_ROLE}")
         cur.execute(f"GRANT USAGE ON SCHEMA public TO {INGEST_ROLE}")
-        cur.execute(f"GRANT SELECT ON dsns TO {INGEST_ROLE}")
+        cur.execute(f"GRANT SELECT ON auth_tokens TO {INGEST_ROLE}")
         cur.execute(f"GRANT SELECT ON apps TO {INGEST_ROLE}")
 
         cur.execute(
             """
-            SELECT has_table_privilege(%s, 'dsns', 'INSERT'),
-                   has_table_privilege(%s, 'dsns', 'UPDATE'),
-                   has_table_privilege(%s, 'dsns', 'DELETE')
+            SELECT has_table_privilege(%s, 'auth_tokens', 'INSERT'),
+                   has_table_privilege(%s, 'auth_tokens', 'UPDATE'),
+                   has_table_privilege(%s, 'auth_tokens', 'DELETE')
             """,
             (INGEST_ROLE, INGEST_ROLE, INGEST_ROLE),
         )

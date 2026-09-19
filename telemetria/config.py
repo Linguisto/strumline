@@ -37,7 +37,7 @@ class DatabaseSettings(_Base):
     App DB (control plane, CLI, migrations):
         postgresql+asyncpg://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:<DB_PORT>/<DB_NAME>
 
-    Ingest role (read-only DSN resolver, same DB, different credentials):
+    Ingest role (read-only auth token resolver, same DB, different credentials):
         postgresql+asyncpg://<INGEST_DB_USER>:<INGEST_DB_PASSWORD>@<DB_HOST>:<DB_PORT>/<DB_NAME>
     """
 
@@ -74,12 +74,22 @@ class DatabaseSettings(_Base):
 class CommonSettings(_Base):
     """Settings shared across all processes."""
 
+    app_key: str = ""
+    """Secret key used for HMAC signing of auth tokens. Must be set in production.
+    Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+    """
+
     app_timezone: str = ""
     """Optional IANA display timezone (e.g. 'Europe/Berlin'). Empty means UTC.
     Affects presentation only; all storage and transmission is UTC."""
 
     metrics_enabled: bool = True
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+
+    @field_validator("app_key", mode="after")
+    @classmethod
+    def _validate_app_key(cls, v: str) -> str:
+        return v
 
     @field_validator("app_timezone", mode="after")
     @classmethod
@@ -98,10 +108,19 @@ class APISettings(_Base):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
+    # API documentation (Scalar at /) — independent of admin API
+    api_docs_enabled: bool = False
+
+    # Admin REST API gate — disabled by default
+    admin_api_enabled: bool = False
+    admin_api_key: str = ""
+
     @model_validator(mode="after")
-    def _validate_port(self) -> APISettings:
+    def _validate(self) -> APISettings:
         if not (1 <= self.api_port <= 65535):
             raise ValueError(f"API_PORT must be 1–65535, got {self.api_port}")
+        if self.admin_api_enabled and not self.admin_api_key:
+            raise ValueError("ADMIN_API_KEY must be set when ADMIN_API_ENABLED=true")
         return self
 
 
@@ -111,6 +130,9 @@ class IngestSettings(_Base):
     ingest_host: str = "0.0.0.0"
     ingest_port: int = 8001
     ipc_socket_path: str = "/var/run/telemetria/ipc.sock"
+
+    # API documentation (Scalar at /)
+    api_docs_enabled: bool = False
 
     # Admission limits
     max_payload_bytes: int = 1 * 1024 * 1024  # 1 MiB
@@ -130,6 +152,9 @@ class ProcessorSettings(_Base):
     processor_host: str = "0.0.0.0"
     processor_port: int = 8002
     ipc_socket_path: str = "/var/run/telemetria/ipc.sock"
+
+    # API documentation (Scalar at /)
+    api_docs_enabled: bool = False
 
     # Sink selection
     sink_provider: str = "null"

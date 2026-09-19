@@ -1,4 +1,4 @@
-"""Repositories for Project, App, and DSN.
+"""Repositories for Project, App, and AuthToken.
 
 Repositories translate between SQLAlchemy ORM models and pure domain
 dataclasses. All methods accept an ``AsyncSession`` and are called inside a
@@ -15,8 +15,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from telemetria.db.models import AppModel, DSNModel, ProjectModel
-from telemetria.domain.entities import DSN, App, Project
+from telemetria.db.models import AppModel, AuthTokenModel, ProjectModel
+from telemetria.domain.entities import App, AuthToken, Project
 from telemetria.domain.errors import (
     AlreadyRevokedError,
     ConflictError,
@@ -65,11 +65,11 @@ def _app_from_model(m: AppModel) -> App:
     )
 
 
-def _dsn_from_model(m: DSNModel) -> DSN:
-    return DSN(
+def _auth_token_from_model(m: AuthTokenModel) -> AuthToken:
+    return AuthToken(
         id=m.id,
         app_id=m.app_id,
-        key=m.key,
+        key_hash=m.key_hash,
         is_active=m.is_active,
         created_at=_ensure_utc(m.created_at),
         revoked_at=_ensure_utc(m.revoked_at) if m.revoked_at is not None else None,
@@ -208,46 +208,48 @@ class AppRepository:
 
 
 # ---------------------------------------------------------------------------
-# DSNRepository
+# AuthTokenRepository
 # ---------------------------------------------------------------------------
 
 
-class DSNRepository:
+class AuthTokenRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._s = session
 
-    async def create(self, dsn: DSN) -> DSN:
-        model = DSNModel(
-            id=dsn.id,
-            app_id=dsn.app_id,
-            key=dsn.key,
-            is_active=dsn.is_active,
-            created_at=dsn.created_at,
-            revoked_at=dsn.revoked_at,
+    async def create(self, token: AuthToken) -> AuthToken:
+        model = AuthTokenModel(
+            id=token.id,
+            app_id=token.app_id,
+            key_hash=token.key_hash,
+            is_active=token.is_active,
+            created_at=token.created_at,
+            revoked_at=token.revoked_at,
         )
         self._s.add(model)
         await self._s.flush()
-        return _dsn_from_model(model)
+        return _auth_token_from_model(model)
 
-    async def get_by_id(self, dsn_id: UUID) -> DSN:
-        model = await self._s.get(DSNModel, dsn_id)
+    async def get_by_id(self, token_id: UUID) -> AuthToken:
+        model = await self._s.get(AuthTokenModel, token_id)
         if model is None:
-            raise NotFoundError("DSN", str(dsn_id))
-        return _dsn_from_model(model)
+            raise NotFoundError("AuthToken", str(token_id))
+        return _auth_token_from_model(model)
 
-    async def list_by_app(self, app_id: UUID) -> list[DSN]:
+    async def list_by_app(self, app_id: UUID) -> list[AuthToken]:
         result = await self._s.execute(
-            select(DSNModel).where(DSNModel.app_id == app_id).order_by(DSNModel.created_at)
+            select(AuthTokenModel)
+            .where(AuthTokenModel.app_id == app_id)
+            .order_by(AuthTokenModel.created_at)
         )
-        return [_dsn_from_model(m) for m in result.scalars()]
+        return [_auth_token_from_model(m) for m in result.scalars()]
 
-    async def revoke(self, dsn_id: UUID) -> DSN:
-        model = await self._s.get(DSNModel, dsn_id)
+    async def revoke(self, token_id: UUID) -> AuthToken:
+        model = await self._s.get(AuthTokenModel, token_id)
         if model is None:
-            raise NotFoundError("DSN", str(dsn_id))
+            raise NotFoundError("AuthToken", str(token_id))
         if not model.is_active:
-            raise AlreadyRevokedError(str(dsn_id))
+            raise AlreadyRevokedError(str(token_id))
         model.is_active = False
         model.revoked_at = datetime.now(tz=UTC)
         await self._s.flush()
-        return _dsn_from_model(model)
+        return _auth_token_from_model(model)

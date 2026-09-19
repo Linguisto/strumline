@@ -1,13 +1,13 @@
-"""DSN resolver for the ingest process.
+"""Auth token resolver for the ingest process.
 
-Resolves a DSN key to its associated App metadata using the read-only ingest
+Resolves an auth token key to its associated App metadata using the read-only ingest
 database role. Results are cached with a 60-second TTL to keep hot paths off
 the database.
 
 Outage policy
 -------------
 On a database failure during a cache miss: **fail closed** — raise
-``DSNResolverError`` so the request returns ``503``, rather than silently
+``AuthTokenResolverError`` so the request returns ``503``, rather than silently
 accepting events for an unvalidated DSN.
 
 On a database failure with a cached (possibly stale) entry: serve the cached
@@ -26,26 +26,26 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from telemetria.db.models import AppModel, DSNModel
+from telemetria.db.models import AppModel, AuthTokenModel
 
 if TYPE_CHECKING:
     pass
 
 log = logging.getLogger(__name__)
 
-# Cache TTL in seconds — revoked DSNs remain valid for up to this period
-DSN_CACHE_TTL: int = 60
+# Cache TTL in seconds — revoked auth tokens remain valid for up to this period
+AUTH_TOKEN_CACHE_TTL: int = 60
 
 
-class DSNResolverError(Exception):
-    """Raised when the resolver cannot validate a DSN key."""
+class AuthTokenResolverError(Exception):
+    """Raised when the resolver cannot validate an auth token key."""
 
 
 @dataclass(frozen=True)
-class ResolvedDSN:
+class ResolvedToken:
     """Routing metadata attached to every validated event."""
 
-    dsn_id: str
+    token_id: str
     app_id: str
     app_slug: str
     project_id: str
@@ -54,40 +54,44 @@ class ResolvedDSN:
 
 @dataclass
 class _CacheEntry:
-    result: ResolvedDSN | None  # None means known-invalid (revoked/unknown)
+    result: ResolvedToken | None  # None means known-invalid (revoked/unknown)
     expires_at: float
 
 
-class DSNResolver:
-    """Thread-safe async DSN resolver with TTL cache.
+class AuthTokenResolver:
+    """Thread-safe async auth token resolver with TTL cache.
 
     Parameters
     ----------
     factory:
         An ``async_sessionmaker`` bound to the **ingest** (read-only) DB role.
     ttl:
-        Cache TTL in seconds. Defaults to ``DSN_CACHE_TTL`` (60 s).
+        Cache TTL in seconds. Defaults to ``AUTH_TOKEN_CACHE_TTL`` (60 s).
+    app_key:
+        Application secret for HMAC hashing. Empty = plain SHA-256 (dev only).
     """
 
     def __init__(
         self,
         factory: async_sessionmaker[AsyncSession],
-        ttl: int = DSN_CACHE_TTL,
+        ttl: int = AUTH_TOKEN_CACHE_TTL,
+        app_key: str = "",
     ) -> None:
         self._factory = factory
         self._ttl = ttl
+        self._app_key = app_key
         self._cache: dict[str, _CacheEntry] = {}
         self._lock = asyncio.Lock()
 
-    async def resolve(self, key: str) -> ResolvedDSN:
+    async def resolve(self, key: str) -> ResolvedToken:
         """Resolve *key* to routing metadata.
 
-        Returns a ``ResolvedDSN`` on success.
+        Returns a ``ResolvedToken`` on success.
 
         Raises
         ------
-        DSNResolverError
-            DSN is unknown, revoked, or the database is unavailable on a
+        AuthTokenResolverError
+            Auth token is unknown, revoked, or the database is unavailable on a
             cache miss.
         """
         now = time.monotonic()
@@ -97,13 +101,13 @@ class DSNResolver:
             entry = self._cache.get(key)
             if entry is not None and entry.expires_at > now:
                 if entry.result is None:
-                    raise DSNResolverError("DSN is revoked or unknown (cached)")
+                    raise AuthTokenResolverError("Auth token is revoked or unknown (cached)")
                 return entry.result
 
         # Slow path: query the database
         try:
             result = await self._query(key)
-        except DSNResolverError:
+        except AuthTokenResolverError:
             # DB returned a definitive negative — cache it
             async with self._lock:
                 self._cache[key] = _CacheEntry(
@@ -113,8 +117,8 @@ class DSNResolver:
             raise
         except Exception as exc:
             # DB failure on a cache miss — fail closed
-            log.warning("DSN resolver DB error (cache miss): %s", exc)
-            raise DSNResolverError("DSN resolver unavailable and no cached result") from exc
+            log.warning("Auth token resolver DB error (cache miss): %s", exc)
+            raise AuthTokenResolverError("Resolver unavailable — no cached result") from exc
 
         # Cache the positive result
         async with self._lock:
@@ -124,22 +128,25 @@ class DSNResolver:
             )
         return result
 
-    async def _query(self, key: str) -> ResolvedDSN:
-        """Query the database for *key*. Raises ``DSNResolverError`` if invalid."""
+    async def _query(self, key: str) -> ResolvedToken:
+        """Query the database for *key*. Raises ``AuthTokenResolverError`` if invalid."""
+        from telemetria.domain.entities import hash_key as _hash_key
+
+        key_hash = _hash_key(key, self._app_key)
         async with self._factory() as session:
             row = await session.execute(
-                select(DSNModel, AppModel)
-                .join(AppModel, DSNModel.app_id == AppModel.id)
-                .where(DSNModel.key == key)
+                select(AuthTokenModel, AppModel)
+                .join(AppModel, AuthTokenModel.app_id == AppModel.id)
+                .where(AuthTokenModel.key_hash == key_hash)
             )
             result = row.one_or_none()
 
         if result is None:
-            raise DSNResolverError("Unknown DSN key")
+            raise AuthTokenResolverError("Unknown auth token key")
 
-        dsn_model, app_model = result
-        if not dsn_model.is_active:
-            raise DSNResolverError("DSN has been revoked")
+        token_model, app_model = result
+        if not token_model.is_active:
+            raise AuthTokenResolverError("Auth token has been revoked")
 
         # Eagerly load project via relationship — requires joined load or
         # explicit query. Use a second query to stay within SELECT grants.
@@ -149,10 +156,10 @@ class DSNResolver:
             project = await session.get(ProjectModel, app_model.project_id)
 
         if project is None:
-            raise DSNResolverError("DSN app has no parent project")
+            raise AuthTokenResolverError("Auth token app has no parent project")
 
-        return ResolvedDSN(
-            dsn_id=str(dsn_model.id),
+        return ResolvedToken(
+            token_id=str(token_model.id),
             app_id=str(app_model.id),
             app_slug=app_model.slug,
             project_id=str(project.id),

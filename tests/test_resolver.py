@@ -1,7 +1,7 @@
 """M2-B: DSN resolver tests.
 
 Tests use a real PostgreSQL instance (via testcontainers) and the migrated
-schema. Covers: active DSN resolves, revoked DSN rejected, cache TTL, DB
+schema. Covers: active token resolves, revoked DSN rejected, cache TTL, DB
 failure outage policy.
 """
 
@@ -12,21 +12,25 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from telemetria.control.apps import AppService
-from telemetria.control.dsns import DSNService
+from telemetria.control.auth_tokens import AuthTokenService
 from telemetria.control.projects import ProjectService
-from telemetria.ingest.resolver import DSN_CACHE_TTL, DSNResolver, DSNResolverError
+from telemetria.ingest.resolver import (
+    AUTH_TOKEN_CACHE_TTL,
+    AuthTokenResolver,
+    AuthTokenResolverError,
+)
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
 def resolver_factory(migrated_factory):
-    """Return a DSNResolver backed by the test DB."""
-    return DSNResolver(migrated_factory)
+    """Return a AuthTokenResolver backed by the test DB."""
+    return AuthTokenResolver(migrated_factory)
 
 
 @pytest.fixture
-async def project_app_dsn(migrated_factory):
+async def project_app_token(migrated_factory):
     """Create a project, app, and active DSN with unique slugs. Returns (project, app, dsn)."""
     import uuid as _uuid
 
@@ -37,8 +41,8 @@ async def project_app_dsn(migrated_factory):
     async with migrated_factory() as session, session.begin():
         project = await ProjectService(session).create(proj_slug, "Resolver Project")
         app = await AppService(session).create(proj_slug, app_slug, "Resolver App")
-        dsn = await DSNService(session).create(app.id)
-    return project, app, dsn
+        token, raw_key = await AuthTokenService(session).create(app.id)
+    return project, app, token, raw_key
 
 
 # ---------------------------------------------------------------------------
@@ -47,12 +51,12 @@ async def project_app_dsn(migrated_factory):
 
 
 @pytest.mark.asyncio
-async def test_resolve_active_dsn(resolver_factory, project_app_dsn):
-    project, app, dsn = project_app_dsn
+async def test_resolve_active_token(resolver_factory, project_app_token):
+    project, app, token, raw_key = project_app_token
     resolver = resolver_factory
 
-    result = await resolver.resolve(dsn.key)
-    assert result.dsn_id == str(dsn.id)
+    result = await resolver.resolve(raw_key)
+    assert result.token_id == str(token.id)
     assert result.app_id == str(app.id)
     assert result.app_slug == app.slug
     assert result.project_id == str(project.id)
@@ -60,33 +64,33 @@ async def test_resolve_active_dsn(resolver_factory, project_app_dsn):
 
 
 # ---------------------------------------------------------------------------
-# Unknown DSN rejected
+# Unknown token rejected
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_resolve_unknown_dsn(resolver_factory):
+async def test_resolve_unknown_token(resolver_factory):
     resolver = resolver_factory
-    with pytest.raises(DSNResolverError):
+    with pytest.raises(AuthTokenResolverError):
         await resolver.resolve("nonexistent-key-12345")
 
 
 # ---------------------------------------------------------------------------
-# Revoked DSN rejected
+# Revoked token rejected
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_resolve_revoked_dsn(migrated_factory, project_app_dsn):
-    project, app, dsn = project_app_dsn
-    resolver = DSNResolver(migrated_factory, ttl=DSN_CACHE_TTL)
+async def test_resolve_revoked_token(migrated_factory, project_app_token):
+    project, app, token, raw_key = project_app_token
+    resolver = AuthTokenResolver(migrated_factory, ttl=AUTH_TOKEN_CACHE_TTL)
 
-    # Revoke the DSN
+    # Revoke the auth token
     async with migrated_factory() as session, session.begin():
-        await DSNService(session).revoke(dsn.id, app.id)
+        await AuthTokenService(session).revoke(token.id, app.id)
 
-    with pytest.raises(DSNResolverError, match="revoked"):
-        await resolver.resolve(dsn.key)
+    with pytest.raises(AuthTokenResolverError, match="revoked"):
+        await resolver.resolve(raw_key)
 
 
 # ---------------------------------------------------------------------------
@@ -95,18 +99,18 @@ async def test_resolve_revoked_dsn(migrated_factory, project_app_dsn):
 
 
 @pytest.mark.asyncio
-async def test_resolve_uses_cache(migrated_factory, project_app_dsn):
-    _, _, dsn = project_app_dsn
-    resolver = DSNResolver(migrated_factory, ttl=60)
+async def test_resolve_uses_cache(migrated_factory, project_app_token):
+    _, _, token, raw_key = project_app_token
+    resolver = AuthTokenResolver(migrated_factory, ttl=60)
 
     # First call populates cache
-    result1 = await resolver.resolve(dsn.key)
+    result1 = await resolver.resolve(raw_key)
     # Patch _query to ensure it is NOT called on second resolve
     with patch.object(resolver, "_query", new_callable=AsyncMock) as mock_query:
-        result2 = await resolver.resolve(dsn.key)
+        result2 = await resolver.resolve(raw_key)
         mock_query.assert_not_called()
 
-    assert result1.dsn_id == result2.dsn_id
+    assert result1.token_id == result2.token_id
 
 
 # ---------------------------------------------------------------------------
@@ -115,11 +119,11 @@ async def test_resolve_uses_cache(migrated_factory, project_app_dsn):
 
 
 @pytest.mark.asyncio
-async def test_cache_expires(migrated_factory, project_app_dsn):
-    _, _, dsn = project_app_dsn
-    resolver = DSNResolver(migrated_factory, ttl=0)  # TTL=0 → always expired
+async def test_cache_expires(migrated_factory, project_app_token):
+    _, _, token, raw_key = project_app_token
+    resolver = AuthTokenResolver(migrated_factory, ttl=0)  # TTL=0 → always expired
 
-    result1 = await resolver.resolve(dsn.key)
+    result1 = await resolver.resolve(raw_key)
 
     call_count = 0
     original_query = resolver._query
@@ -130,10 +134,10 @@ async def test_cache_expires(migrated_factory, project_app_dsn):
         return await original_query(key)
 
     with patch.object(resolver, "_query", side_effect=counting_query):
-        result2 = await resolver.resolve(dsn.key)
+        result2 = await resolver.resolve(raw_key)
 
     assert call_count == 1  # cache expired, DB was hit again
-    assert result1.dsn_id == result2.dsn_id
+    assert result1.token_id == result2.token_id
 
 
 # ---------------------------------------------------------------------------
@@ -143,14 +147,14 @@ async def test_cache_expires(migrated_factory, project_app_dsn):
 
 @pytest.mark.asyncio
 async def test_db_failure_on_cache_miss_fails_closed(migrated_factory):
-    resolver = DSNResolver(migrated_factory, ttl=60)
+    resolver = AuthTokenResolver(migrated_factory, ttl=60)
 
     async def failing_query(key: str):
         raise RuntimeError("simulated DB outage")
 
     with (
         patch.object(resolver, "_query", side_effect=failing_query),
-        pytest.raises(DSNResolverError, match="unavailable"),
+        pytest.raises(AuthTokenResolverError, match="unavailable"),
     ):
         await resolver.resolve("some-key")
 
@@ -161,18 +165,18 @@ async def test_db_failure_on_cache_miss_fails_closed(migrated_factory):
 
 
 @pytest.mark.asyncio
-async def test_db_failure_serves_stale_cache(migrated_factory, project_app_dsn):
-    _, _, dsn = project_app_dsn
-    resolver = DSNResolver(migrated_factory, ttl=3600)
+async def test_db_failure_serves_stale_cache(migrated_factory, project_app_token):
+    _, _, token, raw_key = project_app_token
+    resolver = AuthTokenResolver(migrated_factory, ttl=3600)
 
     # Warm the cache
-    result1 = await resolver.resolve(dsn.key)
+    result1 = await resolver.resolve(raw_key)
 
     # Now DB fails — should still return cached value
     async def failing_query(key: str):
         raise RuntimeError("simulated DB outage")
 
     with patch.object(resolver, "_query", side_effect=failing_query):
-        result2 = await resolver.resolve(dsn.key)
+        result2 = await resolver.resolve(raw_key)
 
-    assert result1.dsn_id == result2.dsn_id
+    assert result1.token_id == result2.token_id

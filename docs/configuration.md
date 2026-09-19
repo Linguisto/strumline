@@ -7,18 +7,26 @@ All settings are read at process startup. Changes require a process restart.
 
 ## Common (all processes)
 
-| Variable          | Default  | Secret | Description                                                                                                     |
-|-------------------|----------|--------|-----------------------------------------------------------------------------------------------------------------|
-| `LOG_LEVEL`       | `INFO`   | no     | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL`                                                         |
-| `METRICS_ENABLED` | `true`   | no     | Expose `/metrics` endpoint when `true`                                                                          |
-| `APP_TIMEZONE`    | `` (UTC) | no     | Optional IANA display timezone (e.g. `Europe/Berlin`). Presentation only — all storage and transmission is UTC. |
+| Variable          | Default  | Secret  | Description                                                                                                     |
+|-------------------|----------|---------|-----------------------------------------------------------------------------------------------------------------|
+| `LOG_LEVEL`       | `INFO`   | no      | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL`                                                         |
+| `METRICS_ENABLED` | `true`   | no      | Expose `/metrics` endpoint when `true`                                                                          |
+| `APP_TIMEZONE`    | `` (UTC) | no      | Optional IANA display timezone (e.g. `Europe/Berlin`). Presentation only — all storage and transmission is UTC. |
+| `APP_KEY`         | ``       | **yes** | HMAC-SHA256 secret for auth token hashing. Generated automatically by `make up` if empty. Required in production. |
 
 ## API process (`telemetria-api`)
 
-| Variable   | Default   | Secret | Description           |
-|------------|-----------|--------|-----------------------|
-| `API_HOST` | `0.0.0.0` | no     | Bind address          |
-| `API_PORT` | `8000`    | no     | Listen port (1–65535) |
+| Variable            | Default   | Secret  | Description                                                  |
+|--------------------|-----------|---------|--------------------------------------------------------------|
+| `API_HOST`          | `0.0.0.0` | no      | Bind address                                                 |
+| `API_PORT`          | `8000`    | no      | Listen port (1–65535)                                        |
+| `ADMIN_API_ENABLED` | `false`   | no      | Mount admin CRUD routes at `/admin/v1` and serve Scalar docs at `/` |
+| `ADMIN_API_KEY`     | ``        | **yes** | Bearer key for admin API — required when `ADMIN_API_ENABLED=true` |
+
+When `ADMIN_API_ENABLED=true`, a non-empty `ADMIN_API_KEY` is required. Generate one:
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
 
 ## Ingest process (`telemetria-ingest`)
 
@@ -27,6 +35,7 @@ All settings are read at process startup. Changes require a process restart.
 | `INGEST_HOST`       | `0.0.0.0`                      | no     | Bind address                                                        |
 | `INGEST_PORT`       | `8001`                         | no     | Listen port (1–65535)                                               |
 | `IPC_SOCKET_PATH`   | `/var/run/telemetria/ipc.sock` | no     | Unix-domain socket path shared with the processor                   |
+| `API_DOCS_ENABLED`  | `false`                        | no     | Serve Scalar API docs at `/` (ingest contract — `POST /v1/ingest`)  |
 | `MAX_PAYLOAD_BYTES` | `1048576` (1 MiB)              | no     | Raw request body limit — enforced before JSON parsing               |
 | `MAX_BATCH_EVENTS`  | `300`                          | no     | Maximum events per batch request                                    |
 | `QUEUE_SIZE`        | `10000`                        | no     | In-process event queue capacity — `QueueFull` drops events silently |
@@ -50,9 +59,16 @@ All settings are read at process startup. Changes require a process restart.
 
 See [`docs/sinks.md`](sinks.md) for the full sink contract, failure taxonomy, and how to add a new provider.
 
+## Grafana (bundled observability stack)
+
+| Variable            | Default    | Secret  | Description                     |
+|---------------------|------------|---------|---------------------------------|
+| `GRAFANA_USER`      | `john.doe` | no      | Grafana admin username           |
+| `GRAFANA_PASSWORD`  | `changeme` | **yes** | Grafana admin password — change before exposing externally |
+
 ## Advanced configuration and fine-tuning
 
-These variables have sensible defaults and are omitted from `.env.example`. Set them only when you need to override the defaults.
+These variables are commented out in `.env.example`. Set them only when you need to override the defaults.
 
 ### Loki multi-tenancy
 
@@ -86,7 +102,7 @@ Two roles connect to the same PostgreSQL database. Connection URLs are assembled
 | `DB_NAME`            | `telemetria`        | no      | api, cli, migrations | Database name                                                    |
 | `DB_USER`            | `telemetria`        | no      | api, cli, migrations | App role (read-write)                                            |
 | `DB_PASSWORD`        | `telemetria`        | **yes** | api, cli, migrations | App role password — change before deploying                      |
-| `INGEST_DB_USER`     | `telemetria_ingest` | no      | ingest               | Read-only role for DSN resolver                                  |
+| `INGEST_DB_USER`     | `telemetria_ingest` | no      | ingest               | Read-only role for auth token resolver                                  |
 | `INGEST_DB_PASSWORD` | ``                  | **yes** | ingest               | Read-only role password — set after running the bootstrap script |
 
 The ingest process falls back to the app role (`DB_*`) if `INGEST_DB_PASSWORD` is empty. Run the bootstrap script to

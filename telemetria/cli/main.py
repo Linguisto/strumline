@@ -2,8 +2,12 @@
 
 Entry point: ``telemetria``
 
-M0: --help / --version
-M1: migrate, project CRUD, app CRUD, app timezone, dsn create/list/revoke
+Commands:
+  list                  Tree view: projects → apps → tokens
+  project create|show|delete
+  app create|show|delete
+  token create|revoke
+  migrate
 """
 
 from __future__ import annotations
@@ -13,9 +17,10 @@ import importlib.metadata
 import typer
 
 from telemetria.cli import apps as app_cmd
-from telemetria.cli import dsns as dsn_cmd
+from telemetria.cli import auth_tokens as token_cmd
 from telemetria.cli import migrate as migrate_cmd
 from telemetria.cli import projects as project_cmd
+from telemetria.cli.info_cmd import app as info_app
 
 app = typer.Typer(
     name="telemetria",
@@ -24,10 +29,13 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+app.add_typer(info_app, name="info")
 app.add_typer(project_cmd.app, name="project")
 app.add_typer(app_cmd.app, name="app")
-app.add_typer(dsn_cmd.app, name="dsn")
+app.add_typer(token_cmd.app, name="token")
 app.command("migrate")(migrate_cmd.migrate)
+app.add_typer(__import__("telemetria.cli.doctor", fromlist=["app"]).app, name="doctor")
+app.add_typer(__import__("telemetria.cli.dashboard_cmd", fromlist=["app"]).app, name="dashboard")
 
 
 def _version_callback(value: bool) -> None:

@@ -5,7 +5,11 @@ inclusion: always
 
 # What Telemetria is
 
-Non-blocking, lightning-fast structured telemetry collector. Best-effort by design.
+Application runtime structured event ingest — send what you want, from anywhere, over HTTP.
+
+One endpoint, one auth token, one JSON object. No SDK, no agent, no sidecar. Your application calls `POST /v1/ingest` with a bearer token and a payload; Telemetria handles authentication, batching, routing, retries, and delivery to Loki. The sink, the storage, and the dashboards are yours — Telemetria is the ingest layer between your application code and your observability stack.
+
+**Not for:** infrastructure logs (nginx, systemd, container stdout) — use Fluent Bit or Vector for those. **For:** application-level structured events where you control what you send and when.
 
 `202 Accepted` means authentication and validation succeeded and enqueue was attempted. It does not guarantee delivery. Queue pressure, process failure, IPC failure, and exhausted sink retries may silently lose events. Retries may produce duplicate event IDs. Never promise stronger semantics than this.
 
@@ -27,9 +31,9 @@ Three entities, all immutable after creation except soft states:
 
 - `Project` — top-level namespace (slug + name)
 - `App` — belongs to a project; optional IANA `timezone` for display only
-- `DSN` — bearer token scoped to an app; can be revoked
+- `AuthToken` — bearer token scoped to an app; can be revoked
 
-DSN keys are `secrets.token_urlsafe(32)`, stored as plaintext in v1, revealed once at creation.
+Auth token keys are `secrets.token_urlsafe(32)` (256-bit entropy). The raw key is shown once at creation and never stored — only its HMAC-SHA256 hash (`APP_KEY` required in production) is persisted.
 
 ## Sink model
 

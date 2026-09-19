@@ -43,15 +43,15 @@ class AppModel(Base, TimestampMixin):
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     project: Mapped[ProjectModel] = relationship("ProjectModel", back_populates="apps")
-    dsns: Mapped[list[DSNModel]] = relationship(
-        "DSNModel", back_populates="app", cascade="all, delete-orphan"
+    auth_tokens: Mapped[list[AuthTokenModel]] = relationship(
+        "AuthTokenModel", back_populates="app", cascade="all, delete-orphan"
     )
 
     __table_args__ = (UniqueConstraint("project_id", "slug", name="uq_apps_project_slug"),)
 
 
-class DSNModel(Base):
-    __tablename__ = "dsns"
+class AuthTokenModel(Base):
+    __tablename__ = "auth_tokens"
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
     app_id: Mapped[UUID] = mapped_column(
@@ -59,9 +59,9 @@ class DSNModel(Base):
         ForeignKey("apps.id", ondelete="CASCADE"),
         nullable=False,
     )
-    key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    app: Mapped[AppModel] = relationship("AppModel", back_populates="dsns")
+    app: Mapped[AppModel] = relationship("AppModel", back_populates="auth_tokens")
