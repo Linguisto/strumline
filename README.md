@@ -1,6 +1,7 @@
 # Telemetria
 
-Non-blocking, lightning-fast structured telemetry collector.
+Non-blocking, lightning-fast structured telemetry collector. Application runtime event ingest — send what you
+want, from anywhere, over HTTP. No SDK, no agent, no sidecar.
 
 ## Quickstart
 
@@ -9,6 +10,7 @@ make up             # build dev image + start stack + run migrations
 ```
 
 Services after startup:
+
 - API → http://localhost:8000/health
 - Ingest → http://localhost:8001/health
 - Processor → http://localhost:8002/health
@@ -41,13 +43,15 @@ Tag and push it manually, or let the release workflow handle it on a `vX.Y.Z` ta
 
 ## Docker
 
-One image, three containers — `telemetria-api`, `telemetria-ingest`, `telemetria-processor` — built from a multi-stage `docker/Dockerfile`:
+One image, three containers — `telemetria-api`, `telemetria-ingest`, `telemetria-processor` — built from a multi-stage
+`docker/Dockerfile`:
 
 - `builder` — installs dependencies at `/app` with `uv`
 - `runtime` — minimal non-root image (`telemetria` uid 10001), no dev tools
 - `dev` — extends runtime with pytest, ruff, mypy, and hot-reload
 
-Ingest and processor share a Unix-domain socket via a named volume (`/var/run/telemetria/`). PostgreSQL stores control-plane metadata only — raw telemetry never touches the database.
+Ingest and processor share a Unix-domain socket via a named volume (`/var/run/telemetria/`). PostgreSQL stores
+control-plane metadata only — raw telemetry never touches the database.
 
 ## Requirements
 

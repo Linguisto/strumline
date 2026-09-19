@@ -69,11 +69,11 @@ class ValidationError(TelemetriaError):
 
 
 class AlreadyRevokedError(TelemetriaError):
-    """DSN is already revoked."""
+    """Auth token is already revoked."""
 
     exit_code = 9
     http_status = 409
 
-    def __init__(self, dsn_id: str) -> None:
-        super().__init__(f"DSN {dsn_id!r} is already revoked")
-        self.dsn_id = dsn_id
+    def __init__(self, token_id: str) -> None:
+        super().__init__(f"Auth token {token_id!r} is already revoked")
+        self.token_id = token_id

@@ -40,6 +40,8 @@ init:
 		cp .env.example .env; \
 		echo "✓ Created .env from .env.example"; \
 	fi
+	@perl -i -pe 's/^APP_KEY=$$/sprintf "APP_KEY=%s", unpack("H*", do { open my $$f, "<", "\/dev\/urandom" or die; read $$f, my $$b, 32; $$b })/e' .env \
+		&& echo "✓ Generated APP_KEY" || true
 
 bash: ## Open a shell in a disposable CLI container
 	docker compose run --rm telemetria-cli bash

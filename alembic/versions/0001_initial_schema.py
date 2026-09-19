@@ -1,4 +1,4 @@
-"""Initial schema: projects, apps, dsns.
+"""Initial schema: projects, apps, auth_tokens.
 
 Revision ID: 0001
 Revises:
@@ -68,20 +68,20 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "dsns",
+        "auth_tokens",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("app_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("key", sa.String(64), nullable=False),
+        sa.Column("key_hash", sa.String(64), nullable=False),
         sa.Column("is_active", sa.Boolean, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["app_id"], ["apps.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("key", name="uq_dsns_key"),
+        sa.UniqueConstraint("key_hash", name="uq_auth_tokens_key_hash"),
     )
 
 
 def downgrade() -> None:
-    op.drop_table("dsns")
+    op.drop_table("auth_tokens")
     op.drop_table("apps")
     op.drop_table("projects")

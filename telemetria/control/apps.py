@@ -34,15 +34,18 @@ class AppService:
             else await self._projects.get_by_id(uuid.UUID(project_slug_or_id))
         )
         now = datetime.now(tz=UTC)
-        app = App(
-            id=uuid.uuid4(),
-            project_id=project.id,
-            slug=slug,
-            name=name,
-            timezone=tz,
-            created_at=now,
-            updated_at=now,
-        )
+        try:
+            app = App(
+                id=uuid.uuid4(),
+                project_id=project.id,
+                slug=slug,
+                name=name,
+                timezone=tz,
+                created_at=now,
+                updated_at=now,
+            )
+        except ValueError as exc:
+            raise ValidationError("slug", str(exc)) from exc
         return await self._repo.create(app)
 
     async def get(self, project_slug_or_id: str, app_slug_or_id: str) -> App:

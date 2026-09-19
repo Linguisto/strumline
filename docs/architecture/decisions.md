@@ -32,7 +32,7 @@ PostgreSQL stores control-plane metadata only. Raw telemetry is never written to
 ## Import boundaries
 
 ```
-ingest/     may import: domain/, ipc/, metrics/, db/ (read-only DSN resolver)
+ingest/     may import: domain/, ipc/, metrics/, db/ (read-only auth token resolver)
 processor/  may import: domain/, ipc/, metrics/, sinks/ (contract + factory only)
 control/    shared by cli/ and api/; neither imports the data plane
 ipc/        may import: domain/ only

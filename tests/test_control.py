@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from telemetria.control.apps import AppService
-from telemetria.control.dsns import DSNService
+from telemetria.control.auth_tokens import AuthTokenService
 from telemetria.control.projects import ProjectService
 from telemetria.domain.errors import (
     AlreadyRevokedError,
@@ -154,7 +154,7 @@ async def test_app_ownership_check(migrated_factory) -> None:
 
 
 # ---------------------------------------------------------------------------
-# DSNService
+# AuthTokenService
 # ---------------------------------------------------------------------------
 
 
@@ -165,15 +165,15 @@ async def test_dsn_create_and_list(migrated_factory) -> None:
         app = await AppService(session).create("dsn-parent", "dsn-app", "DSN App")
 
     async with migrated_factory() as session, session.begin():
-        dsn = await DSNService(session).create(app.id)
+        token, raw_key = await AuthTokenService(session).create(app.id)
 
-    assert dsn.is_active
-    assert len(dsn.key) >= 40  # token_urlsafe(32) ≈ 43 chars
-    assert dsn.revoked_at is None
+    assert token.is_active
+    assert len(raw_key) >= 40  # token_urlsafe(32) ≈ 43 chars
+    assert token.revoked_at is None
 
     async with migrated_factory() as session, session.begin():
-        dsns = await DSNService(session).list_by_app(app.id)
-    assert any(d.id == dsn.id for d in dsns)
+        tokens = await AuthTokenService(session).list_by_app(app.id)
+    assert any(d.id == token.id for d in tokens)
 
 
 @pytest.mark.asyncio
@@ -181,10 +181,10 @@ async def test_dsn_revoke(migrated_factory) -> None:
     async with migrated_factory() as session, session.begin():
         await ProjectService(session).create("revoke-parent", "Revoke Parent")
         app = await AppService(session).create("revoke-parent", "revoke-app", "Revoke App")
-        dsn = await DSNService(session).create(app.id)
+        token, raw_key = await AuthTokenService(session).create(app.id)
 
     async with migrated_factory() as session, session.begin():
-        revoked = await DSNService(session).revoke(dsn.id, app.id)
+        revoked = await AuthTokenService(session).revoke(token.id, app.id)
     assert not revoked.is_active
     assert revoked.revoked_at is not None
 
@@ -196,14 +196,14 @@ async def test_dsn_double_revoke_raises(migrated_factory) -> None:
         app = await AppService(session).create(
             "dbl-revoke-parent", "dbl-revoke-app", "Dbl Revoke App"
         )
-        dsn = await DSNService(session).create(app.id)
+        token, raw_key = await AuthTokenService(session).create(app.id)
 
     async with migrated_factory() as session, session.begin():
-        await DSNService(session).revoke(dsn.id, app.id)
+        await AuthTokenService(session).revoke(token.id, app.id)
 
     with pytest.raises(AlreadyRevokedError):
         async with migrated_factory() as session, session.begin():
-            await DSNService(session).revoke(dsn.id, app.id)
+            await AuthTokenService(session).revoke(token.id, app.id)
 
 
 @pytest.mark.asyncio
@@ -213,11 +213,11 @@ async def test_dsn_ownership_check(migrated_factory) -> None:
         await ProjectService(session).create("dsn-own-parent", "DSN Own Parent")
         app1 = await AppService(session).create("dsn-own-parent", "dsn-own-app1", "App1")
         app2 = await AppService(session).create("dsn-own-parent", "dsn-own-app2", "App2")
-        dsn = await DSNService(session).create(app1.id)
+        token_own, _ = await AuthTokenService(session).create(app1.id)
 
     with pytest.raises(OwnershipError):
         async with migrated_factory() as session, session.begin():
-            await DSNService(session).revoke(dsn.id, app2.id)
+            await AuthTokenService(session).revoke(token_own.id, app2.id)
 
 
 @pytest.mark.asyncio
@@ -226,7 +226,7 @@ async def test_dsn_key_entropy(migrated_factory) -> None:
     async with migrated_factory() as session, session.begin():
         await ProjectService(session).create("entropy-parent", "Entropy Parent")
         app = await AppService(session).create("entropy-parent", "entropy-app", "Entropy App")
-        dsn = await DSNService(session).create(app.id)
+        token, raw_key = await AuthTokenService(session).create(app.id)
 
     # token_urlsafe(32) produces ceil(32*4/3) = 44 base64url chars, typically 43
-    assert 40 <= len(dsn.key) <= 50, f"Unexpected key length: {len(dsn.key)}"
+    assert 40 <= len(raw_key) <= 50, f"Unexpected key length: {len(raw_key)}"

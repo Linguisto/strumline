@@ -21,14 +21,14 @@ Three processes share one Docker image, one host, and one Unix-domain socket:
 Your application
       │
       │  HTTP POST /v1/ingest
-      │  X-Telemetria-DSN: <key>
+      │  X-Telemetria-auth token: <key>
       ▼
 ┌─────────────────────┐
 │  telemetria-ingest  │  :8001
 │                     │
-│  1. Auth (DSN)      │
+│  1. Auth (auth token)      │
 │  2. Validate        │──────────────── PostgreSQL (read-only)
-│  3. Normalize UTC   │  DSN resolution
+│  3. Normalize UTC   │  auth token resolution
 │  4. Enqueue         │
 │  5. IPC write ──────┼────────────────── Unix socket
 └─────────────────────┘                        │
@@ -52,19 +52,19 @@ Your application
 ```
 
 The processes are separated by design:
-- **Ingest** is untrusted and read-only at the database level. It cannot write metadata. If compromised, it cannot corrupt Projects, Apps, or DSNs.
+- **Ingest** is untrusted and read-only at the database level. It cannot write metadata. If compromised, it cannot corrupt Projects, Apps, or auth tokens.
 - **Processor** has no HTTP surface for telemetry data. It only reads from the socket.
 - **API** handles control-plane operations (CRUD) and is kept completely separate from the data path.
 
-## Authentication and the DSN model
+## Authentication and the auth token model
 
-Every ingest request carries a DSN (Data Source Name) key in the `X-Telemetria-DSN` header. A DSN is a bearer token scoped to one App. The ingest process resolves it through the read-only database role using a TTL cache (60 seconds by default).
+Every ingest request carries a auth token (Data Source Name) key in the `X-Telemetria-auth token` header. A auth token is a bearer token scoped to one App. The ingest process resolves it through the read-only database role using a TTL cache (60 seconds by default).
 
-The resolution query looks up `dsn → app → project` and returns routing metadata — project ID, project slug, app ID, app slug — which is embedded directly into the event. This means the processor never needs to touch the database. The event carries all the context needed for Loki labelling.
+The resolution query looks up `token → app → project` and returns routing metadata — project ID, project slug, app ID, app slug — which is embedded directly into the event. This means the processor never needs to touch the database. The event carries all the context needed for Loki labelling.
 
-The cache serves two purposes: it keeps hot paths off the database, and it provides a grace period after revocation (a revoked DSN remains valid for up to one TTL period). On a cache miss with a database failure, the resolver fails closed — it returns 401 rather than accepting events for an unvalidated DSN.
+The cache serves two purposes: it keeps hot paths off the database, and it provides a grace period after revocation (a revoked auth token remains valid for up to one TTL period). On a cache miss with a database failure, the resolver fails closed — it returns 401 rather than accepting events for an unvalidated auth token.
 
-DSN keys use `secrets.token_urlsafe(32)`: 32 bytes of random data, 256 bits of entropy, encoded as approximately 43 URL-safe characters. They are stored as plaintext in v1 and revealed once at creation.
+auth token keys use `secrets.token_urlsafe(32)`: 32 bytes of random data, 256 bits of entropy, encoded as approximately 43 URL-safe characters. They are stored as plaintext in v1 and revealed once at creation.
 
 ## The ingest queue
 
@@ -127,7 +127,7 @@ Timestamps are serialised as decimal nanosecond strings (not JSON numbers) becau
 
 ## The control plane
 
-The API process handles Projects, Apps, and DSNs through the `telemetria/control/` service layer. The same services are used by both the CLI and the future admin REST API (M6b), preventing business logic from being duplicated.
+The API process handles Projects, Apps, and auth tokens through the `telemetria/control/` service layer. The same services are used by both the CLI and the future admin REST API (M6b), preventing business logic from being duplicated.
 
 The two-model split keeps the domain layer clean:
 - `telemetria/db/models.py` — SQLAlchemy ORM models, used only inside `telemetria/db/`
@@ -187,4 +187,4 @@ The `ingest_events_dropped_total` and `processor_events_dropped_total` counters 
 - **No backpressure to callers.** The HTTP layer always returns promptly. Overload signals are metrics, not errors.
 - **No per-app sink routing.** All apps go to the same sink. Multi-sink fan-out is deferred.
 - **No event deduplication.** The `id` field is present for downstream use, but Telemetria itself does not deduplicate on retry.
-- **No raw telemetry in PostgreSQL.** The database stores metadata only (Projects, Apps, DSNs). Events flow ingest → IPC → processor → sink and never touch the database.
+- **No raw telemetry in PostgreSQL.** The database stores metadata only (Projects, Apps, auth tokens). Events flow ingest → IPC → processor → sink and never touch the database.
