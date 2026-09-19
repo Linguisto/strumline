@@ -23,6 +23,13 @@ x-common-env: &common-env
   LOG_LEVEL: "${LOG_LEVEL:-INFO}"
   METRICS_ENABLED: "${METRICS_ENABLED:-true}"
   APP_TIMEZONE: "${APP_TIMEZONE:-}"
+  APP_KEY: "${APP_KEY:-}"
+  API_DOCS_ENABLED: "${API_DOCS_ENABLED:-false}"
+
+x-api-env: &api-env
+  API_DOCS_ENABLED: "${API_DOCS_ENABLED:-false}"
+  ADMIN_API_ENABLED: "${ADMIN_API_ENABLED:-false}"
+  ADMIN_API_KEY: "${ADMIN_API_KEY:-}"
 
 x-sink-env: &sink-env
   SINK_PROVIDER: "${SINK_PROVIDER:-loki}"
@@ -40,12 +47,17 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: ${TELEMETRIA_TARGET:-runtime}
-    command: telemetria-api
+      target: ${TELEMETRIA_TARGET:-dev}
+    command: >
+      uvicorn telemetria.api.server:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app/telemetria
     environment:
-      <<: [ *common-env, *db-env ]
+      <<: [ *common-env, *db-env, *api-env ]
     ports:
       - "8000:8000"
+    volumes:
+      - ./telemetria:/app/telemetria:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,14 +80,18 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: ${TELEMETRIA_TARGET:-runtime}
-    command: telemetria-ingest
+      target: ${TELEMETRIA_TARGET:-dev}
+    command: >
+      uvicorn telemetria.ingest.server:app
+      --host 0.0.0.0 --port 8001
+      --reload --reload-dir /app/telemetria
     environment:
       <<: [ *common-env, *db-env, *ingest-db-env ]
     ports:
       - "8001:8001"
     volumes:
       - ipc-socket:/var/run/telemetria
+      - ./telemetria:/app/telemetria:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,14 +112,18 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: ${TELEMETRIA_TARGET:-runtime}
-    command: telemetria-processor
+      target: ${TELEMETRIA_TARGET:-dev}
+    command: >
+      uvicorn telemetria.processor.server:app
+      --host 0.0.0.0 --port 8002
+      --reload --reload-dir /app/telemetria
     environment:
       <<: [ *common-env, *db-env, *sink-env ]
     ports:
       - "127.0.0.1:8002:8002"
     volumes:
       - ipc-socket:/var/run/telemetria
+      - ./telemetria:/app/telemetria:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -127,11 +147,13 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: ${TELEMETRIA_TARGET:-runtime}
+      target: ${TELEMETRIA_TARGET:-dev}
     profiles:
       - cli
     environment:
       <<: [ *common-env, *db-env ]
+    volumes:
+      - ./telemetria:/app/telemetria:ro
     depends_on:
       postgres:
         condition: service_healthy

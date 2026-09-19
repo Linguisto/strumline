@@ -6,7 +6,7 @@ Tests cover:
 - /metrics is excluded from HTTP instrumentation (no self-referential label)
 - Counter smoke tests: ingest accepted/dropped counters increment correctly
 - Label cardinality guard: route labels use templates, not raw paths
-- DSN cache hit/miss counters increment
+- auth token cache hit/miss counters increment
 - IPC reconnect counter increments
 - Processor drop counter increments with correct reason labels
 """
@@ -24,20 +24,20 @@ from prometheus_client import REGISTRY
 
 from telemetria.config import CommonSettings, IngestSettings
 from telemetria.domain.events import Event, EventBatch
-from telemetria.ingest.resolver import DSNResolverError, ResolvedDSN
+from telemetria.ingest.resolver import AuthTokenResolverError, ResolvedToken
 from telemetria.ingest.server import create_app as create_ingest_app
 
 pytestmark = pytest.mark.unit
 
 _NOW = datetime(2026, 9, 18, 17, 0, 0, tzinfo=UTC)
-_RESOLVED = ResolvedDSN(
-    dsn_id="dsn-id",
+_RESOLVED = ResolvedToken(
+    token_id="token-id",
     app_id="00000000-0000-0000-0000-000000000002",
     app_slug="my-app",
     project_id="00000000-0000-0000-0000-000000000001",
     project_slug="my-proj",
 )
-_DSN_HEADER = {"x-telemetria-dsn": "valid-key", "content-type": "application/json"}
+_TOKEN_HEADER = {"x-telemetria-token": "valid-key", "content-type": "application/json"}
 
 
 def _make_event(**kwargs) -> Event:  # type: ignore[no-untyped-def]
@@ -77,7 +77,7 @@ def _counter_value(metric_name: str, **labels: str) -> float:
 
 
 def _make_ingest_app(
-    resolver_result: ResolvedDSN | Exception = _RESOLVED,
+    resolver_result: ResolvedToken | Exception = _RESOLVED,
     metrics_enabled: bool = True,
     queue_size: int = 10_000,
 ):  # type: ignore[no-untyped-def]
@@ -157,7 +157,7 @@ async def test_route_label_is_template_not_raw_path():
         await c.post(
             "/v1/ingest",
             json={"level": "info", "message": "hi", "payload": {}},
-            headers=_DSN_HEADER,
+            headers=_TOKEN_HEADER,
         )
 
     text = _prom_text()
@@ -182,7 +182,7 @@ async def test_ingest_accepted_counter_increments():
         r = await c.post(
             "/v1/ingest",
             json={"level": "info", "message": "smoke", "payload": {}},
-            headers=_DSN_HEADER,
+            headers=_TOKEN_HEADER,
         )
     assert r.status_code == 202
     after = INGEST_EVENTS_ACCEPTED_TOTAL._value.get()
@@ -201,13 +201,13 @@ async def test_ingest_dropped_queue_full_counter():
         await c.post(
             "/v1/ingest",
             json={"level": "info", "message": "first", "payload": {}},
-            headers=_DSN_HEADER,
+            headers=_TOKEN_HEADER,
         )
         # This one should drop
         r = await c.post(
             "/v1/ingest",
             json={"level": "info", "message": "drop", "payload": {}},
-            headers=_DSN_HEADER,
+            headers=_TOKEN_HEADER,
         )
     assert r.json()["dropped"] == 1
     after = INGEST_EVENTS_DROPPED_TOTAL.labels(reason="queue_full")._value.get()
@@ -215,37 +215,37 @@ async def test_ingest_dropped_queue_full_counter():
 
 
 @pytest.mark.asyncio
-async def test_ingest_dsn_cache_miss_on_unknown():
-    """INGEST_DSN_CACHE_MISSES_TOTAL increments on DSN resolution failure."""
-    from telemetria.metrics import INGEST_DSN_CACHE_MISSES_TOTAL
+async def test_ingest_auth_token_cache_miss_on_unknown():
+    """INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL increments on auth token resolution failure."""
+    from telemetria.metrics import INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL
 
-    before = INGEST_DSN_CACHE_MISSES_TOTAL._value.get()
-    app = _make_ingest_app(resolver_result=DSNResolverError("unknown"))
+    before = INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL._value.get()
+    app = _make_ingest_app(resolver_result=AuthTokenResolverError("unknown"))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         r = await c.post(
             "/v1/ingest",
             json={"level": "info", "message": "x", "payload": {}},
-            headers=_DSN_HEADER,
+            headers=_TOKEN_HEADER,
         )
     assert r.status_code == 401
-    after = INGEST_DSN_CACHE_MISSES_TOTAL._value.get()
+    after = INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL._value.get()
     assert after == before + 1
 
 
 @pytest.mark.asyncio
-async def test_ingest_dsn_cache_hit_on_success():
-    """INGEST_DSN_CACHE_HITS_TOTAL increments on successful DSN resolution."""
-    from telemetria.metrics import INGEST_DSN_CACHE_HITS_TOTAL
+async def test_ingest_auth_token_cache_hit_on_success():
+    """INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL increments on successful auth token resolution."""
+    from telemetria.metrics import INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL
 
-    before = INGEST_DSN_CACHE_HITS_TOTAL._value.get()
+    before = INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL._value.get()
     app = _make_ingest_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         await c.post(
             "/v1/ingest",
             json={"level": "info", "message": "hit", "payload": {}},
-            headers=_DSN_HEADER,
+            headers=_TOKEN_HEADER,
         )
-    after = INGEST_DSN_CACHE_HITS_TOTAL._value.get()
+    after = INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL._value.get()
     assert after == before + 1
 
 

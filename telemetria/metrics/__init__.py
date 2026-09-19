@@ -17,7 +17,7 @@ Label cardinality rules (enforced by convention, tested in test_metrics.py)
 Allowed labels: ``process``, ``method``, ``route``, ``status_class``,
 ``reason``, ``sink``.
 
-Forbidden in labels: raw paths, DSN keys, event IDs, project/app names,
+Forbidden in labels: raw paths, auth token keys, event IDs, project/app names,
 message text, payload values.
 
 ``/metrics`` is excluded from HTTP instrumentation to avoid recursion.
@@ -70,14 +70,14 @@ INGEST_QUEUE_CAPACITY = Gauge(
     "Maximum capacity of the ingest queue (QUEUE_SIZE).",
 )
 
-INGEST_DSN_CACHE_HITS_TOTAL = Counter(
-    "telemetria_ingest_dsn_cache_hits_total",
-    "Total DSN resolver cache hits.",
+INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL = Counter(
+    "telemetria_ingest_auth_token_cache_hits_total",
+    "Total auth token resolver cache hits.",
 )
 
-INGEST_DSN_CACHE_MISSES_TOTAL = Counter(
-    "telemetria_ingest_dsn_cache_misses_total",
-    "Total DSN resolver cache misses (database queries).",
+INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL = Counter(
+    "telemetria_ingest_auth_token_cache_misses_total",
+    "Total auth token resolver cache misses (database queries).",
 )
 
 INGEST_IPC_RECONNECTS_TOTAL = Counter(

@@ -25,7 +25,7 @@ def test_migration_creates_tables() -> None:
     tables = inspect(engine).get_table_names()
     assert "projects" in tables
     assert "apps" in tables
-    assert "dsns" in tables
+    assert "auth_tokens" in tables
     engine.dispose()
 
 
@@ -38,8 +38,8 @@ def test_timestamp_columns_are_timestamptz() -> None:
         ("projects", "updated_at"),
         ("apps", "created_at"),
         ("apps", "updated_at"),
-        ("dsns", "created_at"),
-        ("dsns", "revoked_at"),
+        ("auth_tokens", "created_at"),
+        ("auth_tokens", "revoked_at"),
     ]:
         cols = {c["name"]: c for c in insp.get_columns(table)}
         assert col_name in cols, f"{table}.{col_name} missing"
