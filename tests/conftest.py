@@ -61,7 +61,7 @@ def _db_boot() -> None:
     c = psycopg2.connect(host=_HOST, port=_PORT, user=_USER, password=_PASSWORD, dbname=_DB)
     c.autocommit = True
     with c.cursor() as cur:
-        cur.execute("TRUNCATE TABLE dsns, apps, projects RESTART IDENTITY CASCADE")
+        cur.execute("TRUNCATE TABLE auth_tokens, apps, projects RESTART IDENTITY CASCADE")
     c.close()
 
 

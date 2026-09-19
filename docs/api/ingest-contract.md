@@ -10,7 +10,7 @@ POST /v1/ingest/batch
 Both endpoints require the header:
 
 ```
-X-Telemetria-DSN: <dsn-key>
+X-Telemetria-auth token: <token-key>
 Content-Type: application/json
 ```
 
@@ -21,7 +21,7 @@ Content-Type: application/json
 | `MAX_PAYLOAD_BYTES` | 1 MiB (1 048 576 bytes) | Before JSON parsing, on raw request bytes |
 | `MAX_BATCH_EVENTS` | 300 | After parsing, before any enqueue |
 | Queue size | 10 000 events | `put_nowait` — never blocks the request |
-| DSN cache TTL | 60 s | After TTL, revoked DSNs are rejected |
+| auth token cache TTL | 60 s | After TTL, revoked auth tokens are rejected |
 
 ## Single event — `POST /v1/ingest`
 
@@ -79,7 +79,7 @@ validated before any event is enqueued — validation failures enqueue zero even
 | Status | Condition |
 |---|---|
 | `400 Bad Request` | Invalid JSON, missing required fields, invalid field types, nesting depth exceeded |
-| `401 Unauthorized` | Unknown, inactive, or revoked DSN |
+| `401 Unauthorized` | Unknown, inactive, or revoked auth token |
 | `413 Request Entity Too Large` | Raw body exceeds `MAX_PAYLOAD_BYTES` |
 | `415 Unsupported Media Type` | `Content-Type` is not `application/json` |
 | `422 Unprocessable Entity` | Batch exceeds `MAX_BATCH_EVENTS` |
@@ -107,6 +107,6 @@ Retries may produce duplicate event IDs. Event IDs are not general idempotency k
 
 ## Security
 
-- DSN keys are never logged at normal log levels.
+- auth token keys are never logged at normal log levels.
 - Raw telemetry payloads are never logged at normal log levels.
 - The ingest process uses the read-only database role — it cannot write metadata.

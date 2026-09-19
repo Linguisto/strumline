@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from telemetria.db.repositories import ProjectRepository
 from telemetria.domain.entities import Project
+from telemetria.domain.errors import ValidationError
 
 
 class ProjectService:
@@ -17,13 +18,16 @@ class ProjectService:
 
     async def create(self, slug: str, name: str) -> Project:
         now = datetime.now(tz=UTC)
-        project = Project(
-            id=uuid.uuid4(),
-            slug=slug,
-            name=name,
-            created_at=now,
-            updated_at=now,
-        )
+        try:
+            project = Project(
+                id=uuid.uuid4(),
+                slug=slug,
+                name=name,
+                created_at=now,
+                updated_at=now,
+            )
+        except ValueError as exc:
+            raise ValidationError("slug", str(exc)) from exc
         return await self._repo.create(project)
 
     async def get(self, slug_or_id: str) -> Project:

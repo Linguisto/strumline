@@ -413,7 +413,7 @@ async def test_end_to_end_http_to_null_sink():
     from httpx2 import ASGITransport, AsyncClient
 
     from telemetria.config import IngestSettings
-    from telemetria.ingest.resolver import ResolvedDSN
+    from telemetria.ingest.resolver import ResolvedToken
     from telemetria.ingest.server import create_app
     from telemetria.ingest.writer import IPCWriter
 
@@ -433,8 +433,8 @@ async def test_end_to_end_http_to_null_sink():
         ingest_settings = IngestSettings(queue_size=100, ipc_socket_path=sock_path)
         mock_resolver = MagicMock()
         mock_resolver.resolve = AsyncMock(
-            return_value=ResolvedDSN(
-                dsn_id="dsn-1",
+            return_value=ResolvedToken(
+                token_id="token-1",
                 app_id="00000000-0000-0000-0000-000000000002",
                 app_slug="app",
                 project_id="00000000-0000-0000-0000-000000000001",
@@ -447,7 +447,7 @@ async def test_end_to_end_http_to_null_sink():
         writer = IPCWriter(app.state.queue, sock_path)
         writer_task = asyncio.create_task(writer.run())
 
-        headers = {"x-telemetria-dsn": "key", "content-type": "application/json"}
+        headers = {"x-telemetria-token": "key", "content-type": "application/json"}
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             r = await client.post(
                 "/v1/ingest/batch",

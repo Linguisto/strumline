@@ -52,8 +52,8 @@ The dashboard uses data source UIDs `prometheus` and `loki`. If your data source
 | `telemetria_ingest_events_dropped_total` | `reason` | Events dropped (queue_full, validation_error, auth_error) |
 | `telemetria_ingest_queue_depth` | — | Current ingest queue depth |
 | `telemetria_ingest_queue_capacity` | — | Ingest queue max capacity |
-| `telemetria_ingest_dsn_cache_hits_total` | — | DSN cache hits |
-| `telemetria_ingest_dsn_cache_misses_total` | — | DSN cache misses (DB queries) |
+| `telemetria_ingest_token_cache_hits_total` | — | auth token cache hits |
+| `telemetria_ingest_token_cache_misses_total` | — | auth token cache misses (DB queries) |
 | `telemetria_ingest_ipc_reconnects_total` | — | IPC writer reconnect attempts |
 | `telemetria_processor_queue_depth` | — | Current processor queue depth |
 | `telemetria_processor_queue_capacity` | — | Processor queue max capacity |
@@ -69,7 +69,7 @@ The dashboard uses data source UIDs `prometheus` and `loki`. If your data source
 
 **Authentication.** The `/metrics` endpoints are unauthenticated. Restrict access at the network level or bind processes to a non-public interface.
 
-**Label cardinality.** All labels are bounded low-cardinality values. Never add raw paths, DSN keys, event IDs, project/app names, or payload values as labels.
+**Label cardinality.** All labels are bounded low-cardinality values. Never add raw paths, auth token keys, event IDs, project/app names, or payload values as labels.
 
 **Alerting suggestions:**
 - `telemetria_ingest_events_dropped_total{reason="queue_full"}` rising → increase `QUEUE_SIZE` or scale ingest

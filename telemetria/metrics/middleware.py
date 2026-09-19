@@ -70,9 +70,15 @@ def add_metrics(app: FastAPI, *, process: str, enabled: bool) -> None:
     from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
     from starlette.responses import Response as StarletteResponse
 
-    @app.get(_METRICS_PATH, include_in_schema=False)
-    async def metrics() -> StarletteResponse:
-        return StarletteResponse(
+    @app.get(
+        _METRICS_PATH,
+        tags=["System"],
+        summary="Prometheus metrics",
+        response_class=StarletteResponse,
+        responses={200: {"content": {"text/plain": {}}, "description": "Prometheus text format"}},
+    )
+    async def metrics() -> None:
+        return StarletteResponse(  # type: ignore[return-value]
             content=generate_latest(),
             media_type=CONTENT_TYPE_LATEST,
         )

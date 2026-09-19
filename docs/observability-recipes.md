@@ -39,7 +39,7 @@ Import `docker/observability/grafana/provisioning/dashboards/telemetria.json` in
 2. Set the Prometheus data source UID to `prometheus` (or find-and-replace the UID in the JSON)
 3. If you have Loki, add a Loki data source with UID `loki` — the log panel activates automatically
 
-The dashboard covers all key signals across the three processes: ingest rate, drop rate, queue saturation, batch throughput, sink outcomes, HTTP latency P99, IPC health, and DSN cache hit rate.
+The dashboard covers all key signals across the three processes: ingest rate, drop rate, queue saturation, batch throughput, sink outcomes, HTTP latency P99, IPC health, and auth token cache hit rate.
 
 ### Provisioning automatically
 
@@ -349,7 +349,7 @@ groups:
 | Ingest throughput | `rate(telemetria_ingest_events_accepted_total[1m])` | events/s accepted |
 | Drop rate | `rate(telemetria_ingest_events_dropped_total[1m])` | split by `reason` |
 | Queue fill % | `telemetria_ingest_queue_depth / telemetria_ingest_queue_capacity` | alert at 0.8 |
-| DSN cache effectiveness | `rate(hits[5m]) / (rate(hits[5m]) + rate(misses[5m]))` | lower = more DB load |
+| auth token cache effectiveness | `rate(hits[5m]) / (rate(hits[5m]) + rate(misses[5m]))` | lower = more DB load |
 | IPC stability | `rate(telemetria_ingest_ipc_reconnects_total[5m])` | non-zero = socket issues |
 | Sink throughput | `rate(telemetria_processor_batches_total[1m])` | batches/s by `sink` |
 | Sink success rate | `telemetria_processor_sink_writes_total{outcome="success"}` vs `retryable` + `permanent` | |

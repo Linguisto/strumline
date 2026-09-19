@@ -47,21 +47,38 @@ def _get_version() -> str:
         return "unknown"
 
 
-def create_app(settings: CommonSettings | None = None) -> FastAPI:
+def create_app(
+    settings: CommonSettings | None = None,
+    proc_settings: ProcessorSettings | None = None,
+) -> FastAPI:
     """Create the FastAPI health application (no UDS/batch — those run in main)."""
     if settings is None:
         settings = CommonSettings()
+    if proc_settings is None:
+        proc_settings = ProcessorSettings()
 
     application = FastAPI(
         title="Telemetria Processor",
         version=_get_version(),
         docs_url=None,
         redoc_url=None,
+        openapi_url="/openapi.json" if proc_settings.api_docs_enabled else None,
     )
 
-    @application.get("/health")
+    @application.get("/health", tags=["System"])
     async def health() -> dict[str, str]:
         return {"process": _PROCESS, "version": _get_version(), "status": "ok"}
+
+    if proc_settings.api_docs_enabled:
+        from fastapi.responses import HTMLResponse
+        from scalar_fastapi import get_scalar_api_reference
+
+        @application.get("/", include_in_schema=False)
+        async def scalar_docs() -> HTMLResponse:
+            return get_scalar_api_reference(
+                openapi_url="/openapi.json",
+                title="Telemetria Processor",
+            )
 
     add_metrics(application, process=_PROCESS, enabled=settings.metrics_enabled)
     return application
