@@ -20,6 +20,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -52,10 +53,8 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Set up compose stack
-        run: |
-          cp docker/compose.example.yaml compose.yaml
-          cp docker/compose.dev.yaml docker-compose.override.yaml
+      - name: Create .env
+        run: make init
 
       - name: Build dev image
         run: make build.dev
@@ -78,10 +77,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up compose stack
-        run: |
-          cp docker/compose.example.yaml compose.yaml
-          cp docker/compose.dev.yaml docker-compose.override.yaml
+      - name: Create .env
+        run: make init
 
       - name: Download image artifact
         uses: actions/download-artifact@v4
