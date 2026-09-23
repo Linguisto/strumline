@@ -171,6 +171,25 @@ async def test_read_frame_success():
 
 
 @pytest.mark.asyncio
+async def test_read_frame_waits_for_split_body_and_leaves_next_frame():
+    event = _make_event()
+    frame = encode_frame(event)
+    reader = asyncio.StreamReader()
+    reader.feed_data(frame[:12])
+    pending = asyncio.create_task(read_frame(reader))
+    await asyncio.sleep(0)
+    try:
+        assert not pending.done()
+        reader.feed_data(frame[12:] + frame)
+        reader.feed_eof()
+        assert decode_envelope_body(await pending) == event
+        assert decode_envelope_body(await read_frame(reader)) == event
+    finally:
+        reader.feed_eof()
+        await asyncio.gather(pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 async def test_read_frame_empty_body():
     prefix = struct.pack("!I", 0)
     reader = _make_reader(prefix)

@@ -1,5 +1,8 @@
 # Planning review
 
+> Historical pre-implementation review. Its custom JSON/202 and compression proposals
+> are superseded by the [OTLP-only ingestion contract](../../docs/api/otlp-logs.md).
+
 ## Verdict and scope
 
 The intended system is coherent: one host, three Telemetria processes, direct-database CLI/control services, an isolated ingestion process, versioned UDS IPC, and a replaceable write-only sink. UTC-only canonical timestamps and optional first-class Prometheus/Grafana support remain requirements.

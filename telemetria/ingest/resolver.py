@@ -41,6 +41,10 @@ class AuthTokenResolverError(Exception):
     """Raised when the resolver cannot validate an auth token key."""
 
 
+class AuthTokenResolverUnavailable(AuthTokenResolverError):
+    """Temporary database failure, allowing exporters to retry authentication."""
+
+
 @dataclass(frozen=True)
 class ResolvedToken:
     """Routing metadata attached to every validated event."""
@@ -118,7 +122,7 @@ class AuthTokenResolver:
         except Exception as exc:
             # DB failure on a cache miss — fail closed
             log.warning("Auth token resolver DB error (cache miss): %s", exc)
-            raise AuthTokenResolverError("Resolver unavailable — no cached result") from exc
+            raise AuthTokenResolverUnavailable("Resolver unavailable — no cached result") from exc
 
         # Cache the positive result
         async with self._lock:

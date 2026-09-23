@@ -4,7 +4,7 @@ This document explains how Telemetria works end to end — the design decisions,
 
 ## The fundamental design choice: best-effort, non-blocking
 
-Telemetria is built around a single constraint: the ingest HTTP path must never block waiting for downstream systems. A `202 Accepted` response means the event passed authentication and validation and was placed into an in-process queue. Everything after that — IPC transport, batching, sink delivery — happens asynchronously and may fail silently.
+Telemetria is built around a single constraint: the ingest HTTP path must never block waiting for downstream systems. An OTLP `200` response without partial rejection means all records passed authentication and validation and were placed into an in-process queue. Everything after that — IPC transport, batching, sink delivery — happens asynchronously and may fail silently.
 
 This is a deliberate trade-off. It means:
 - Ingest latency is bounded by queue insertion time, not by Loki write latency
@@ -20,15 +20,15 @@ Three processes share one Docker image, one host, and one Unix-domain socket:
 ```
 Your application
       │
-      │  HTTP POST /v1/ingest
-      │  X-Telemetria-auth token: <key>
+      │  HTTP POST /v1/logs
+      │  x-telemetria-token: <key>
       ▼
 ┌─────────────────────┐
 │  telemetria-ingest  │  :8001
 │                     │
-│  1. Auth (auth token)      │
-│  2. Validate        │──────────────── PostgreSQL (read-only)
-│  3. Normalize UTC   │  auth token resolution
+│  1. Authenticate    │──────────────── PostgreSQL (read-only)
+│  2. Validate        │  token resolution
+│  3. Normalize UTC   │
 │  4. Enqueue         │
 │  5. IPC write ──────┼────────────────── Unix socket
 └─────────────────────┘                        │
@@ -47,7 +47,7 @@ Your application
 │                     │
 │  /health            │──── PostgreSQL (read-write)
 │  /metrics           │  control plane
-│  admin routes (M6b) │
+│  /admin/v1 routes   │
 └─────────────────────┘
 ```
 
@@ -58,24 +58,26 @@ The processes are separated by design:
 
 ## Authentication and the auth token model
 
-Every ingest request carries a auth token (Data Source Name) key in the `X-Telemetria-auth token` header. A auth token is a bearer token scoped to one App. The ingest process resolves it through the read-only database role using a TTL cache (60 seconds by default).
+Every ingest request carries an auth token key in the `x-telemetria-token` header. An auth token is a bearer token scoped to one App. The ingest process resolves it through the read-only database role using a TTL cache (60 seconds by default).
 
 The resolution query looks up `token → app → project` and returns routing metadata — project ID, project slug, app ID, app slug — which is embedded directly into the event. This means the processor never needs to touch the database. The event carries all the context needed for Loki labelling.
 
-The cache serves two purposes: it keeps hot paths off the database, and it provides a grace period after revocation (a revoked auth token remains valid for up to one TTL period). On a cache miss with a database failure, the resolver fails closed — it returns 401 rather than accepting events for an unvalidated auth token.
+The cache serves two purposes: it keeps hot paths off the database, and it provides a grace period after revocation (a revoked token remains valid for up to one TTL period). On a cache miss with a database failure, the resolver fails closed — it returns retryable 503 rather than accepting events for an unvalidated token.
 
-auth token keys use `secrets.token_urlsafe(32)`: 32 bytes of random data, 256 bits of entropy, encoded as approximately 43 URL-safe characters. They are stored as plaintext in v1 and revealed once at creation.
+Auth token keys use `secrets.token_urlsafe(32)`: 32 bytes of random data, 256 bits of entropy, encoded as approximately 43 URL-safe characters. The raw key is shown once at creation and never stored — only its HMAC-SHA256 hash is persisted.
 
 ## The ingest queue
 
 Between the HTTP handler and the IPC writer sits an `asyncio.Queue` with a configurable maximum size (default 10,000 events). This is the backpressure boundary.
 
-When the queue is full:
-- The HTTP handler calls `put_nowait`, which raises `QueueFull` immediately
-- The handler increments the drop counter and returns `202` with `dropped: 1`
-- The request never blocks
+When there is insufficient capacity for a batch, the handler returns retryable
+`503` before admitting any records. Admission uses `put_nowait` after checking
+capacity without an intervening await. It never waits for queue space.
 
-This means the ingest HTTP server is always responsive under load. The cost is event loss under sustained overload. The `INGEST_QUEUE_DEPTH` and `INGEST_QUEUE_CAPACITY` metrics let you observe queue saturation before events start dropping.
+Normalized records that exceed payload/frame limits are reported as permanent
+OTLP partial rejections. Queue saturation is observable through HTTP failures
+and `INGEST_QUEUE_DEPTH`/`INGEST_QUEUE_CAPACITY`; it is not counted as a permanent
+ingest drop because the exporter can retry the refused batch.
 
 ## The IPC transport
 
@@ -169,17 +171,16 @@ api/        ← control/, domain/
 
 ## Failure taxonomy
 
-Events can be lost at several points. None surface as HTTP errors to the caller:
-
-| Stage | What drops | Counter |
+| Stage | Behavior | Observable signal |
 |---|---|---|
-| Ingest queue full | `put_nowait` raises `QueueFull` | `ingest_events_dropped_total{reason="queue_full"}` |
-| IPC write failure | Event removed from queue before reconnect | Logged, no counter in v1 |
-| Processor queue full | UDS server calls `put_nowait`, fails | `processor_events_dropped_total{reason="queue_full"}` |
+| Ingest queue full | Whole batch rejected with retryable `503`; nothing admitted, nothing dropped | HTTP `503` to caller; `INGEST_QUEUE_DEPTH` gauge |
+| Normalized size rejection | Records exceeding per-frame or cumulative limits permanently rejected via OTLP partial success | `ingest_events_dropped_total{reason="otlp_normalized_size"}` |
+| IPC write failure | Events already removed from queue before reconnect are lost | Logged; no counter in v1 |
+| Processor queue full | UDS server drops the frame | `processor_events_dropped_total{reason="queue_full"}` |
 | Permanent sink error | Batch discarded immediately | `processor_events_dropped_total{reason="sink_permanent"}` |
 | Sink retries exhausted | Batch discarded after N attempts | `processor_events_dropped_total{reason="sink_retries_exhausted"}` |
 
-The `ingest_events_dropped_total` and `processor_events_dropped_total` counters are distinct because the two queues are owned by different processes with different failure modes. Ingest drops happen because the producer is too fast; processor drops happen because the sink is too slow or unavailable.
+Queue saturation at the ingest boundary is retryable and not counted as a drop because the caller's batch was never admitted — the exporter can and should retry it. All processor-side drops are permanent and counted separately.
 
 ## What Telemetria deliberately does not do
 
