@@ -96,7 +96,7 @@ cannot change that HTTP response. Ingest rejections are reported synchronously:
 |---------------------------|----------------------------------|--------------------------------------------|
 | Ingest queue full         | HTTP `503` (retryable, no admission) | Insufficient batch capacity |
 | Normalized size rejection | `ingest_events_dropped_total{reason="otlp_normalized_size"}` | Records exceeding per-frame or cumulative payload limits; reported as OTLP partial success |
-| IPC write failure         | (logged, no counter in v1)       | Writer disconnected; event removed from queue before reconnect |
+| IPC write failure         | `ingest_events_dropped_total{reason="ipc_write_failure"}` | Writer disconnected mid-write and the event could not be re-queued for retry (queue full) |
 | Processor queue full      | `processor_events_dropped_total{reason="queue_full"}` | UDS server queue at capacity               |
 | Sink permanent failure    | `processor_events_dropped_total{reason="sink_permanent"}` | Provider rejects batch permanently         |
 | Sink retries exhausted    | `processor_events_dropped_total{reason="sink_retries_exhausted"}` | All `SINK_MAX_RETRIES` attempts failed     |

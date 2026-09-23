@@ -13,8 +13,15 @@ reconnects with capped exponential backoff + ±10% jitter:
 
     delay = min(BASE * 2^attempt, MAX) * uniform(0.9, 1.1)
 
-Events removed from the queue while the connection is down are lost; this is
-consistent with the documented best-effort semantics.
+Loss model
+----------
+The writer only pulls from the queue after a successful connect, so it never
+drains "into a dead socket". The single in-operation loss point is a failed
+write whose event cannot be re-queued because the queue is full: that event is
+counted (``INGEST_EVENTS_DROPPED_TOTAL{reason="ipc_write_failure"}``) and
+dropped. Any events still sitting in the queue at process shutdown are
+discarded uncounted — consistent with the documented best-effort semantics
+(a ``200`` acknowledges in-memory admission, not durable delivery).
 """
 
 from __future__ import annotations
@@ -25,7 +32,7 @@ import random
 from typing import TYPE_CHECKING
 
 from telemetria.ipc.codec import encode_frame
-from telemetria.metrics import INGEST_IPC_RECONNECTS_TOTAL
+from telemetria.metrics import INGEST_EVENTS_DROPPED_TOTAL, INGEST_IPC_RECONNECTS_TOTAL
 
 if TYPE_CHECKING:
     from telemetria.domain.events import Event
@@ -100,10 +107,17 @@ class IPCWriter:
                 self._writer.write(frame)
                 await self._writer.drain()
             except Exception:
-                # Put the event back — best-effort retry once
+                # Put the event back for the reconnect loop in run() to retry.
+                # Retries are unbounded (best-effort): run() keeps reconnecting
+                # until the event is delivered, or the queue fills and it is
+                # dropped on the path below.
                 try:
                     self._queue.put_nowait(event)
                 except asyncio.QueueFull:
+                    # Event is lost: the connection failed mid-write and the
+                    # queue is full, so it cannot be re-queued for the retry.
+                    # This is the IPC/write-failure loss path (best-effort).
+                    INGEST_EVENTS_DROPPED_TOTAL.labels(reason="ipc_write_failure").inc()
                     log.warning("IPC writer: queue full on retry, event lost id=%s", event.id)
                 raise
             finally:
