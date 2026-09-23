@@ -42,21 +42,21 @@ inclusion: always
 
 Multi-stage Dockerfile (`docker/Dockerfile`):
 - `builder` — installs deps at `/app` so shebang paths survive copy
-- `runtime` — minimal non-root (`telemetria` uid 10001) production image
+- `runtime` — minimal non-root (`strumline` uid 10001) production image
 - `dev` — extends runtime with dev deps, test sources, hot-reload
 
 Compose files:
 - `docker/compose.example.yaml` → copied to `compose.yaml` (not committed)
 - `docker/compose.dev.yaml` → copied to `docker-compose.override.yaml` (not committed)
 
-`TELEMETRIA_IMAGE_TAG` env var selects which image tag compose uses. `TELEMETRIA_TARGET` selects the Dockerfile build stage.
+`STRUMLINE_IMAGE_TAG` env var selects which image tag compose uses. `STRUMLINE_TARGET` selects the Dockerfile build stage.
 
 ## Configuration
 
 All settings via environment variables or `.env` (never hard-coded). Classes:
 
 - `CommonSettings` — log level, metrics flag, display timezone
-- `DatabaseSettings` — two DB roles: app (read-write) and ingest (read-only DSN resolver)
+- `DatabaseSettings` — two DB roles: app (read-write) and ingest (read-only auth token resolver)
 - `APISettings`, `IngestSettings`, `ProcessorSettings`
 
 Each process imports only its own settings group. Invalid or missing required vars raise `ValidationError` at import time.

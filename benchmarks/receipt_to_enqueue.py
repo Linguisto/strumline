@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Receipt-to-enqueue benchmark harness for the Telemetria ingest receiver.
+"""Receipt-to-enqueue benchmark harness for the Strumline ingest receiver.
 
 Measures the two v1 hard targets (see ``.kiro/steering/product.md`` #5):
 
@@ -69,9 +69,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 from httpx2 import ASGITransport, AsyncClient
 
-from telemetria.config import IngestSettings
-from telemetria.ingest.resolver import ResolvedToken
-from telemetria.ingest.server import create_app
+from strumline.config import IngestSettings
+from strumline.ingest.resolver import ResolvedToken
+from strumline.ingest.server import create_app
 
 # v1 targets (product.md #5)
 TARGET_P99_MS = 5.0
@@ -169,7 +169,7 @@ async def _run(args: argparse.Namespace) -> Results:
     queue: asyncio.Queue[Any] = app.state.queue
 
     payload = _otlp_payload(args.records_per_request)
-    headers = {"x-telemetria-token": "bench", "content-type": "application/json"}
+    headers = {"x-strumline-token": "bench", "content-type": "application/json"}
 
     stop = asyncio.Event()
     drainer = asyncio.create_task(_drain_forever(queue, stop))

@@ -1,6 +1,6 @@
 # Architecture decisions
 
-This document records accepted invariants, topology, and deferred scope for Telemetria.
+This document records accepted invariants, topology, and deferred scope for Strumline.
 It is established in M0 and expanded per feature milestone.
 
 ## Topology (v1)
@@ -8,9 +8,9 @@ It is established in M0 and expanded per feature milestone.
 One host, one image, three containers:
 
 ```
-telemetria-api        :8000  control plane health; admin REST API (M6b)
-telemetria-ingest     :8001  HTTP ingestion and IPC writer
-telemetria-processor  :8002  IPC reader, batching, sink dispatch
+strumline-api        :8000  control plane health; admin REST API (M6b)
+strumline-ingest     :8001  HTTP ingestion and IPC writer
+strumline-processor  :8002  IPC reader, batching, sink dispatch
 ```
 
 Ingest and processor share a Unix-domain-socket directory via a named Docker volume.
@@ -64,7 +64,7 @@ class PermanentSinkError(Exception): ...
 ```
 
 `BatchProcessor` depends only on this contract, not on provider implementations.
-`telemetria.sinks` owns the registry/factory; provider is selected by `SINK_PROVIDER`.
+`strumline.sinks` owns the registry/factory; provider is selected by `SINK_PROVIDER`.
 Retryable failures use exponential backoff with jitter.
 Permanent failures and retry-exhausted batches are counted and discarded.
 

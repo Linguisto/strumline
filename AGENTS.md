@@ -27,9 +27,9 @@ Do not invent response schemas, error names, configuration keys, or defaults. Ch
 
 ## Quality gates — all must pass before finishing any task
 
-1. `ruff check telemetria/ tests/` — zero errors
-2. `ruff format --check telemetria/ tests/` — zero diff
-3. `mypy telemetria/` — zero errors (strict mode)
+1. `ruff check strumline/ tests/` — zero errors
+2. `ruff format --check strumline/ tests/` — zero diff
+3. `mypy strumline/` — zero errors (strict mode)
 4. `lint-imports` — all import boundary contracts pass
 5. `pytest` — all tests pass
 
@@ -40,9 +40,9 @@ Run `make lint` and `make test.unit` (or `make test` with Docker) to verify. Do 
 **Import boundaries** — enforced by `lint-imports`. Never cross these:
 
 ```
-domain/     → nothing in telemetria (pure)
+domain/     → nothing in strumline (pure)
 ipc/        → domain/ only
-ingest/     → domain/, ipc/, metrics/, db/ (read-only DSN resolver only)
+ingest/     → domain/, ipc/, metrics/, db/ (read-only auth token resolver only)
 processor/  → domain/, ipc/, metrics/, sinks/ (contract + factory, not loki directly)
 control/    → db/, domain/
 cli/        → control/, domain/
@@ -59,7 +59,7 @@ api/        → control/, domain/
 
 ## Domain errors
 
-All domain errors inherit `TelemetriaError` and carry `exit_code` (CLI) and `http_status` (REST):
+All domain errors inherit `StrumlineError` and carry `exit_code` (CLI) and `http_status` (REST):
 
 | Error | exit_code | http_status |
 |---|---|---|
@@ -67,20 +67,20 @@ All domain errors inherit `TelemetriaError` and carry `exit_code` (CLI) and `htt
 | `ConflictError(resource, field, value)` | 9 | 409 |
 | `OwnershipError(resource, id, parent)` | 4 | 404 |
 | `ValidationError(field, message)` | 2 | 422 |
-| `AlreadyRevokedError(dsn_id)` | 9 | 409 |
+| `AlreadyRevokedError(token_id)` | 9 | 409 |
 
-CLI handlers catch `TelemetriaError`, print the message, and `raise SystemExit(error.exit_code)`.
-HTTP handlers catch `TelemetriaError` and raise `HTTPException(status_code=error.http_status, detail=str(error))`.
+CLI handlers catch `StrumlineError`, print the message, and `raise SystemExit(error.exit_code)`.
+HTTP handlers catch `StrumlineError` and raise `HTTPException(status_code=error.http_status, detail=str(error))`.
 
 ## Adding a new entity — checklist
 
-1. Domain entity in `telemetria/domain/entities.py` (frozen dataclass, `_assert_utc` on timestamps)
-2. Domain errors in `telemetria/domain/errors.py` if new error cases arise
-3. ORM model in `telemetria/db/models.py` (use `TimestampMixin` for audit timestamps)
+1. Domain entity in `strumline/domain/entities.py` (frozen dataclass, `_assert_utc` on timestamps)
+2. Domain errors in `strumline/domain/errors.py` if new error cases arise
+3. ORM model in `strumline/db/models.py` (use `TimestampMixin` for audit timestamps)
 4. Alembic migration in `alembic/versions/`
-5. Repository in `telemetria/db/repositories.py`
-6. Service in `telemetria/control/<entity>s.py`
-7. CLI commands in `telemetria/cli/<entity>s.py`, registered in `telemetria/cli/main.py`
+5. Repository in `strumline/db/repositories.py`
+6. Service in `strumline/control/<entity>s.py`
+7. CLI commands in `strumline/cli/<entity>s.py`, registered in `strumline/cli/main.py`
 8. Tests: unit for domain logic, integration for repository/service
 
 ## Commit format

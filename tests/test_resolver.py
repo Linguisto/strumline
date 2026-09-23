@@ -1,7 +1,7 @@
-"""M2-B: DSN resolver tests.
+"""M2-B: auth token resolver tests.
 
 Tests use a real PostgreSQL instance (via testcontainers) and the migrated
-schema. Covers: active token resolves, revoked DSN rejected, cache TTL, DB
+schema. Covers: active token resolves, revoked token rejected, cache TTL, DB
 failure outage policy.
 """
 
@@ -11,10 +11,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from telemetria.control.apps import AppService
-from telemetria.control.auth_tokens import AuthTokenService
-from telemetria.control.projects import ProjectService
-from telemetria.ingest.resolver import (
+from strumline.control.apps import AppService
+from strumline.control.auth_tokens import AuthTokenService
+from strumline.control.projects import ProjectService
+from strumline.ingest.resolver import (
     AUTH_TOKEN_CACHE_TTL,
     AuthTokenResolver,
     AuthTokenResolverError,
@@ -31,7 +31,7 @@ def resolver_factory(migrated_factory):
 
 @pytest.fixture
 async def project_app_token(migrated_factory):
-    """Create a project, app, and active DSN with unique slugs. Returns (project, app, dsn)."""
+    """Create a project, app, and active auth token with unique slugs."""
     import uuid as _uuid
 
     suffix = _uuid.uuid4().hex[:8]
@@ -46,7 +46,7 @@ async def project_app_token(migrated_factory):
 
 
 # ---------------------------------------------------------------------------
-# Active DSN resolves
+# Active auth token resolves
 # ---------------------------------------------------------------------------
 
 

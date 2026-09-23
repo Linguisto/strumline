@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-from telemetria.domain.events import Event
-from telemetria.ipc.codec import (
+from strumline.domain.events import Event
+from strumline.ipc.codec import (
     IPC_MAX_FRAME_BYTES,
     PROTOCOL_VERSION,
     EmptyFrameError,

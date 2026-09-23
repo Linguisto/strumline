@@ -18,8 +18,8 @@ import pytest
 
 _HOST = os.environ.get("TESTING_DB_HOST", os.environ.get("DB_HOST", "localhost"))
 _PORT = os.environ.get("TESTING_DB_PORT", os.environ.get("DB_PORT", "5432"))
-_USER = os.environ.get("TESTING_DB_USER", os.environ.get("DB_USER", "telemetria"))
-_PASSWORD = os.environ.get("TESTING_DB_PASSWORD", os.environ.get("DB_PASSWORD", "telemetria"))
+_USER = os.environ.get("TESTING_DB_USER", os.environ.get("DB_USER", "strumline"))
+_PASSWORD = os.environ.get("TESTING_DB_PASSWORD", os.environ.get("DB_PASSWORD", "strumline"))
 _DB = os.environ.get("TESTING_DB_NAME", "test_db")
 
 pg_url: str = f"postgresql+asyncpg://{_USER}:{_PASSWORD}@{_HOST}:{_PORT}/{_DB}"
@@ -67,7 +67,7 @@ def _db_boot() -> None:
 
 @pytest.fixture
 def migrated_factory(_db_boot: None):
-    from telemetria.db.session import make_session_factory
+    from strumline.db.session import make_session_factory
 
     return make_session_factory(pg_url)
 

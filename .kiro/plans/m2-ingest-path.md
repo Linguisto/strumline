@@ -32,7 +32,7 @@ Including project/app IDs and slugs in the event keeps the processor independent
 ## HTTP ingestion
 
 `POST /v1/logs` is the only ingestion endpoint, for both single records and
-batches. Authenticate with `x-telemetria-token`. The
+batches. Authenticate with `x-strumline-token`. The
 [OTLP contract](../../docs/api/otlp-logs.md) defines Protobuf/JSON, gzip, typed
 field preservation, body/record/normalized-size limits, and response encoding.
 

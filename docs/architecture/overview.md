@@ -1,17 +1,17 @@
 # Architecture overview
 
-This document explains how Telemetria works end to end — the design decisions, data flows, and the reasoning behind each component boundary.
+This document explains how Strumline works end to end — the design decisions, data flows, and the reasoning behind each component boundary.
 
 ## The fundamental design choice: best-effort, non-blocking
 
-Telemetria is built around a single constraint: the ingest HTTP path must never block waiting for downstream systems. An OTLP `200` response without partial rejection means all records passed authentication and validation and were placed into an in-process queue. Everything after that — IPC transport, batching, sink delivery — happens asynchronously and may fail silently.
+Strumline is built around a single constraint: the ingest HTTP path must never block waiting for downstream systems. An OTLP `200` response without partial rejection means all records passed authentication and validation and were placed into an in-process queue. Everything after that — IPC transport, batching, sink delivery — happens asynchronously and may fail silently.
 
 This is a deliberate trade-off. It means:
 - Ingest latency is bounded by queue insertion time, not by Loki write latency
 - A Loki outage does not propagate back to your application as HTTP errors
 - Events can be lost; the system counts losses but does not recover them
 
-If you need guaranteed delivery, you need a different system. Telemetria optimises for throughput and isolation over durability.
+If you need guaranteed delivery, you need a different system. Strumline optimises for throughput and isolation over durability.
 
 ## Process topology
 
@@ -21,10 +21,10 @@ Three processes share one Docker image, one host, and one Unix-domain socket:
 Your application
       │
       │  HTTP POST /v1/logs
-      │  x-telemetria-token: <key>
+      │  x-strumline-token: <key>
       ▼
 ┌─────────────────────┐
-│  telemetria-ingest  │  :8001
+│  strumline-ingest  │  :8001
 │                     │
 │  1. Authenticate    │──────────────── PostgreSQL (read-only)
 │  2. Validate        │  token resolution
@@ -34,7 +34,7 @@ Your application
 └─────────────────────┘                        │
                                                │
 ┌─────────────────────┐                        │
-│ telemetria-processor│  :8002                 │
+│ strumline-processor│  :8002                 │
 │                     │◄───────────────────────┘
 │  1. Read frames     │
 │  2. Decode events   │
@@ -43,7 +43,7 @@ Your application
 └─────────────────────┘
 
 ┌─────────────────────┐
-│   telemetria-api    │  :8000
+│   strumline-api    │  :8000
 │                     │
 │  /health            │──── PostgreSQL (read-write)
 │  /metrics           │  control plane
@@ -58,7 +58,7 @@ The processes are separated by design:
 
 ## Authentication and the auth token model
 
-Every ingest request carries an auth token key in the `x-telemetria-token` header. An auth token is a bearer token scoped to one App. The ingest process resolves it through the read-only database role using a TTL cache (60 seconds by default).
+Every ingest request carries an auth token key in the `x-strumline-token` header. An auth token is a bearer token scoped to one App. The ingest process resolves it through the read-only database role using a TTL cache (60 seconds by default).
 
 The resolution query looks up `token → app → project` and returns routing metadata — project ID, project slug, app ID, app slug — which is embedded directly into the event. This means the processor never needs to touch the database. The event carries all the context needed for Loki labelling.
 
@@ -118,7 +118,7 @@ Retries can produce duplicate event IDs in the sink (the sink accepted the first
 Events are grouped into Loki streams by `(project_slug, app_slug, level)`. Each stream gets low-cardinality labels:
 
 ```
-service=telemetria  project=<slug>  app=<slug>  level=<level>
+service=strumline  project=<slug>  app=<slug>  level=<level>
 ```
 
 IDs, trace IDs, user IDs, and arbitrary payload fields stay in the JSON log line, not in labels. This is intentional: Loki's performance degrades sharply with high-cardinality labels. Putting user IDs in labels would create a new stream per user.
@@ -129,13 +129,13 @@ Timestamps are serialised as decimal nanosecond strings (not JSON numbers) becau
 
 ## The control plane
 
-The API process handles Projects, Apps, and auth tokens through the `telemetria/control/` service layer. The same services are used by both the CLI and the future admin REST API (M6b), preventing business logic from being duplicated.
+The API process handles Projects, Apps, and auth tokens through the `strumline/control/` service layer. The same services are used by both the CLI and the future admin REST API (M6b), preventing business logic from being duplicated.
 
 The two-model split keeps the domain layer clean:
-- `telemetria/db/models.py` — SQLAlchemy ORM models, used only inside `telemetria/db/`
-- `telemetria/domain/entities.py` — frozen dataclasses, used everywhere else
+- `strumline/db/models.py` — SQLAlchemy ORM models, used only inside `strumline/db/`
+- `strumline/domain/entities.py` — frozen dataclasses, used everywhere else
 
-Repositories translate between them. Nothing outside `telemetria/db/` ever sees an ORM model.
+Repositories translate between them. Nothing outside `strumline/db/` ever sees an ORM model.
 
 ## UTC everywhere
 
@@ -154,7 +154,7 @@ Every timestamp that crosses a process boundary, gets persisted, or enters a sin
 The module layout enforces a strict dependency order, checked by `import-linter` in CI:
 
 ```
-domain/     ← no telemetria imports (pure Python)
+domain/     ← no strumline imports (pure Python)
     ↑
 ipc/        ← domain/ only
     ↑
@@ -167,7 +167,7 @@ cli/        ← control/, domain/
 api/        ← control/, domain/
 ```
 
-`processor` is explicitly forbidden from importing `telemetria.sinks.loki`. It may only import the `EventSink` ABC and the two error classes. The `get_sink()` factory in `telemetria.sinks` does the concrete import at runtime via `importlib`, keeping the static dependency graph clean.
+`processor` is explicitly forbidden from importing `strumline.sinks.loki`. It may only import the `EventSink` ABC and the two error classes. The `get_sink()` factory in `strumline.sinks` does the concrete import at runtime via `importlib`, keeping the static dependency graph clean.
 
 ## Failure taxonomy
 
@@ -182,10 +182,10 @@ api/        ← control/, domain/
 
 Queue saturation at the ingest boundary is retryable and not counted as a drop because the caller's batch was never admitted — the exporter can and should retry it. All processor-side drops are permanent and counted separately.
 
-## What Telemetria deliberately does not do
+## What Strumline deliberately does not do
 
 - **No durability.** There is no WAL, no replay, no dead-letter store. Dropped events are gone.
 - **No backpressure to callers.** The HTTP layer always returns promptly. Overload signals are metrics, not errors.
 - **No per-app sink routing.** All apps go to the same sink. Multi-sink fan-out is deferred.
-- **No event deduplication.** The `id` field is present for downstream use, but Telemetria itself does not deduplicate on retry.
+- **No event deduplication.** The `id` field is present for downstream use, but Strumline itself does not deduplicate on retry.
 - **No raw telemetry in PostgreSQL.** The database stores metadata only (Projects, Apps, auth tokens). Events flow ingest → IPC → processor → sink and never touch the database.
