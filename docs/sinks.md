@@ -89,15 +89,17 @@ The bundled `loki` service starts with the base stack (`docker compose up -d`). 
 
 ## Failure taxonomy
 
-Events can be lost at several points in the pipeline. None of these surfaces an error to the HTTP caller — `202 Accepted` is best-effort.
+OTLP success acknowledges queue admission, not sink delivery. Later failures
+cannot change that HTTP response. Ingest rejections are reported synchronously:
 
 | Stage                     | Counter                          | Cause                                      |
 |---------------------------|----------------------------------|--------------------------------------------|
-| Ingest queue full         | `ingest_events_dropped_total`    | Queue at `QUEUE_SIZE` capacity             |
+| Ingest queue full         | HTTP `503` (retryable, no admission) | Insufficient batch capacity |
+| Normalized size rejection | `ingest_events_dropped_total{reason="otlp_normalized_size"}` | Records exceeding per-frame or cumulative payload limits; reported as OTLP partial success |
 | IPC write failure         | (logged, no counter in v1)       | Writer disconnected; event removed from queue before reconnect |
-| Processor queue full      | `processor_events_dropped_total` | UDS server queue at capacity               |
-| Sink permanent failure    | `processor_events_dropped_total` | Provider rejects batch permanently         |
-| Sink retries exhausted    | `processor_events_dropped_total` | All `SINK_MAX_RETRIES` attempts failed     |
+| Processor queue full      | `processor_events_dropped_total{reason="queue_full"}` | UDS server queue at capacity               |
+| Sink permanent failure    | `processor_events_dropped_total{reason="sink_permanent"}` | Provider rejects batch permanently         |
+| Sink retries exhausted    | `processor_events_dropped_total{reason="sink_retries_exhausted"}` | All `SINK_MAX_RETRIES` attempts failed     |
 
 Retries may produce duplicate event IDs in the sink (e.g. Loki accepted the batch but the ACK was lost). The event `id` field allows downstream deduplication.
 

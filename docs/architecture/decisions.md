@@ -16,6 +16,16 @@ telemetria-processor  :8002  IPC reader, batching, sink dispatch
 Ingest and processor share a Unix-domain-socket directory via a named Docker volume.
 PostgreSQL stores control-plane metadata only. Raw telemetry is never written to PostgreSQL.
 
+## OTLP logs ingress
+
+The ingest process accepts OTLP/HTTP logs exclusively at `/v1/logs`. Official Protobuf schemas handle decoding and response encoding. Both
+encodings share token resolution, the queue, and the IPC writer; the processor and
+sinks remain independent of OTLP packages. Typed OTLP resource/scope/record data
+is retained in the event payload, including exact nanosecond timestamps.
+OTLP overload responses reject the whole batch with retryable `503`, while
+permanent normalized-size rejections use OTLP partial success. See the
+[OTLP contract](../api/otlp-logs.md) for mapping, limits, and delivery semantics.
+
 ## UTC storage invariant
 
 - Every persisted, transmitted, logged, and sink-facing canonical timestamp is timezone-aware UTC.
@@ -60,17 +70,20 @@ Permanent failures and retry-exhausted batches are counted and discarded.
 
 ## Best-effort semantics
 
-`202 Accepted` means authentication and validation succeeded and enqueue was attempted.
-It does not guarantee delivery. The following may lose events without surfacing an error
-to the HTTP caller: queue pressure, process failure, IPC failure, exhausted sink retries.
-Retries may produce duplicate event IDs. See `docs/sinks.md` for the full failure taxonomy.
+OTLP `200` acknowledges in-memory admission, not durable delivery. A populated
+`partialSuccess` reports permanent normalized-size rejections and must not be
+retried. Queue pressure returns `503` without admitting any records. After
+admission, process failure, IPC failure, or exhausted sink retries may lose
+records; retries may create duplicates. See `docs/api/otlp-logs.md` and
+`docs/sinks.md` for the full failure taxonomy.
 
 ## Deferred scope
 
 - Per-app sink routing, multi-sink fan-out, persistent sink configuration
 - Sink providers beyond Loki and NullSink
 - Event replay and durable/dead-letter storage
-- Local Unix-socket ingestion (M5), gRPC, WebSocket transports
+- Local Unix-socket ingestion (M5), WebSocket transport
+- Deeper OTLP integration, gRPC logs, traces, and metrics ([post-v1 M8](../../.kiro/plans/m8-otlp-integration.md)); profiles remain unscheduled
 - Web admin application
 - Go/Rust ingest rewrite (pending profiling evidence)
 - msgpack framing (pending JSON bottleneck evidence)

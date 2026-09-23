@@ -7,11 +7,11 @@ inclusion: always
 
 Application runtime structured event ingest — send what you want, from anywhere, over HTTP.
 
-One endpoint, one auth token, one JSON object. No SDK, no agent, no sidecar. Your application calls `POST /v1/ingest` with a bearer token and a payload; Telemetria handles authentication, batching, routing, retries, and delivery to Loki. The sink, the storage, and the dashboards are yours — Telemetria is the ingest layer between your application code and your observability stack.
+One endpoint for single logs and batches. An SDK, agent, or sidecar is optional. Your application calls `POST /v1/logs` with an `x-telemetria-token` header and OTLP JSON or Protobuf; Telemetria handles authentication, batching, routing, retries, and delivery to Loki. The sink, the storage, and the dashboards are yours — Telemetria is the ingest layer between your application code and your observability stack.
 
 **Not for:** infrastructure logs (nginx, systemd, container stdout) — use Fluent Bit or Vector for those. **For:** application-level structured events where you control what you send and when.
 
-`202 Accepted` means authentication and validation succeeded and enqueue was attempted. It does not guarantee delivery. Queue pressure, process failure, IPC failure, and exhausted sink retries may silently lose events. Retries may produce duplicate event IDs. Never promise stronger semantics than this.
+OTLP `200` without partial rejection acknowledges in-memory admission, not durable delivery. Partial success reports permanent size rejections; queue pressure returns retryable `503` with no admission. Process failure, IPC failure, and exhausted sink retries may lose accepted records. Retries may produce duplicate event IDs. Never promise stronger semantics than this.
 
 ## v1 deployment topology
 

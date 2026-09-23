@@ -11,7 +11,7 @@ M2 already enforces frame limits and version handling. M7 documents and tests th
 
 - `docs/ipc-protocol.md`: byte layout, uint32 endianness, maximum body length, JSON schema, `v` semantics, EOF/truncation, unknown-version behavior, and canonical UTC encoding.
 - language-neutral conformance fixtures for minimum/maximum frames, split reads, malformed/zero/truncated bodies, and unknown versions.
-- `docs/api/ingest-contract.md`: authentication, raw byte and batch limits, UTC timestamp rules, responses, and exact best-effort meaning of `202`.
+- `docs/api/otlp-logs.md`: OTLP/HTTP Protobuf/JSON/gzip interoperability, typed field preservation, normalized-size limits, partial rejection, and atomic retryable queue admission. Include OTLP in performance and resilience runs for both supported encodings.
 - `docs/sinks.md`: `EventSink`, registry, error taxonomy, lifecycle, retry ownership, metrics, and a provider implementation checklist.
 - BYO Prometheus/Grafana instructions and optional Loki integration.
 - Go/Rust ingest replacement guide based only on public HTTP/IPC contracts.
