@@ -143,6 +143,8 @@ class IngestSettings(_Base):
     def _validate_port(self) -> IngestSettings:
         if not (1 <= self.ingest_port <= 65535):
             raise ValueError(f"INGEST_PORT must be 1–65535, got {self.ingest_port}")
+        if self.queue_size < 1:
+            raise ValueError(f"QUEUE_SIZE must be >= 1, got {self.queue_size}")
         return self
 
 

@@ -450,16 +450,25 @@ async def test_end_to_end_http_to_null_sink():
         headers = {"x-telemetria-token": "key", "content-type": "application/json"}
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             r = await client.post(
-                "/v1/ingest/batch",
+                "/v1/logs",
                 json={
-                    "events": [
-                        {"level": "info", "message": f"e2e-{i}", "payload": {}} for i in range(5)
+                    "resourceLogs": [
+                        {
+                            "scopeLogs": [
+                                {
+                                    "logRecords": [
+                                        {"severityNumber": 9, "body": {"stringValue": f"e2e-{i}"}}
+                                        for i in range(5)
+                                    ]
+                                }
+                            ]
+                        }
                     ]
                 },
                 headers=headers,
             )
-        assert r.status_code == 202
-        assert r.json()["enqueued"] == 5
+        assert r.status_code == 200
+        assert r.json() == {}
 
         # Wait for processor to consume all events
         for _ in range(40):

@@ -155,15 +155,19 @@ async def test_route_label_is_template_not_raw_path():
     app = _make_ingest_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         await c.post(
-            "/v1/ingest",
-            json={"level": "info", "message": "hi", "payload": {}},
+            "/v1/logs",
+            json={
+                "resourceLogs": [
+                    {"scopeLogs": [{"logRecords": [{"body": {"stringValue": "hello"}}]}]}
+                ]
+            },
             headers=_TOKEN_HEADER,
         )
 
     text = _prom_text()
     # Template route should appear; raw path would be identical here,
     # but the mechanism is tested: route is set from matched route.path
-    assert 'route="/v1/ingest"' in text
+    assert 'route="/v1/logs"' in text
 
 
 # ---------------------------------------------------------------------------
@@ -180,18 +184,22 @@ async def test_ingest_accepted_counter_increments():
     app = _make_ingest_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         r = await c.post(
-            "/v1/ingest",
-            json={"level": "info", "message": "smoke", "payload": {}},
+            "/v1/logs",
+            json={
+                "resourceLogs": [
+                    {"scopeLogs": [{"logRecords": [{"body": {"stringValue": "hello"}}]}]}
+                ]
+            },
             headers=_TOKEN_HEADER,
         )
-    assert r.status_code == 202
+    assert r.status_code == 200
     after = INGEST_EVENTS_ACCEPTED_TOTAL._value.get()
     assert after == before + 1
 
 
 @pytest.mark.asyncio
-async def test_ingest_dropped_queue_full_counter():
-    """INGEST_EVENTS_DROPPED_TOTAL{reason=queue_full} increments when queue is full."""
+async def test_ingest_queue_full_is_retryable_not_counted_as_drop():
+    """A refused OTLP batch can be retried and is not counted as a permanent drop."""
     from telemetria.metrics import INGEST_EVENTS_DROPPED_TOTAL
 
     before = INGEST_EVENTS_DROPPED_TOTAL.labels(reason="queue_full")._value.get()
@@ -199,19 +207,28 @@ async def test_ingest_dropped_queue_full_counter():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         # Fill the queue
         await c.post(
-            "/v1/ingest",
-            json={"level": "info", "message": "first", "payload": {}},
+            "/v1/logs",
+            json={
+                "resourceLogs": [
+                    {"scopeLogs": [{"logRecords": [{"body": {"stringValue": "hello"}}]}]}
+                ]
+            },
             headers=_TOKEN_HEADER,
         )
-        # This one should drop
+        # This batch must be refused without admission
         r = await c.post(
-            "/v1/ingest",
-            json={"level": "info", "message": "drop", "payload": {}},
+            "/v1/logs",
+            json={
+                "resourceLogs": [
+                    {"scopeLogs": [{"logRecords": [{"body": {"stringValue": "hello"}}]}]}
+                ]
+            },
             headers=_TOKEN_HEADER,
         )
-    assert r.json()["dropped"] == 1
+    assert r.status_code == 503
+    assert app.state.queue.qsize() == 1
     after = INGEST_EVENTS_DROPPED_TOTAL.labels(reason="queue_full")._value.get()
-    assert after == before + 1
+    assert after == before
 
 
 @pytest.mark.asyncio
@@ -223,8 +240,12 @@ async def test_ingest_auth_token_cache_miss_on_unknown():
     app = _make_ingest_app(resolver_result=AuthTokenResolverError("unknown"))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         r = await c.post(
-            "/v1/ingest",
-            json={"level": "info", "message": "x", "payload": {}},
+            "/v1/logs",
+            json={
+                "resourceLogs": [
+                    {"scopeLogs": [{"logRecords": [{"body": {"stringValue": "hello"}}]}]}
+                ]
+            },
             headers=_TOKEN_HEADER,
         )
     assert r.status_code == 401
@@ -241,8 +262,12 @@ async def test_ingest_auth_token_cache_hit_on_success():
     app = _make_ingest_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         await c.post(
-            "/v1/ingest",
-            json={"level": "info", "message": "hit", "payload": {}},
+            "/v1/logs",
+            json={
+                "resourceLogs": [
+                    {"scopeLogs": [{"logRecords": [{"body": {"stringValue": "hello"}}]}]}
+                ]
+            },
             headers=_TOKEN_HEADER,
         )
     after = INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL._value.get()

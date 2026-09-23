@@ -20,11 +20,15 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.54",
     "asyncpg>=0.31.0",
     "alembic>=1.20.0",
-    "httpx2>=2.13.0",
+    "httpx2>=2.13.1",
     "prometheus-client>=0.26.0",
     "textual>=8.2.8",
     "questionary>=2.1.1",
     "scalar-fastapi>=1.9.0",
+    "opentelemetry-proto>=1.44.0",
+    "googleapis-common-protos>=1.75.3",
+    "protobuf>=7.36.2",
+    "psycopg2-binary>=2.9.13",
 ]
 
 [project.scripts]
@@ -40,8 +44,7 @@ dev = [
     "ruff>=0.16.8",
     "mypy>=2.3.1",
     "import-linter>=2.15",
-    "httpx2>=2.13.0",
-    "psycopg2-binary>=2.9.13",
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0",
 ]
 
 [tool.hatch.build.targets.wheel]

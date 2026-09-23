@@ -17,7 +17,7 @@ Introduce these alongside their first owner, not as a late M7 documentation exer
 | `docs/architecture/decisions.md` | M0-A, expanded per feature | Accepted invariants, topology, ownership, deferred scope |
 | `docs/configuration.md` | M0-B, expanded per feature | Variable type/default, consumer, required-when, precedence, secret status, restart behavior |
 | `docs/api/control-contract.md` | M1-B | CRUD/DSN rules, timezone configuration, pagination, domain errors |
-| `docs/api/ingest-contract.md` | M2-A | Exact single/batch requests and responses, UTC rules, limits, best-effort semantics |
+| `docs/api/otlp-logs.md` | M2-A | OTLP single/batch requests, responses, UTC rules, limits, best-effort semantics |
 | `docs/ipc-protocol.md` | M2-A | Frame/schema/version/error behavior and golden fixtures |
 | `docs/sinks.md` | M2b-B | EventBatch, ABC, lifecycle, failure taxonomy, retries, success semantics |
 | `docs/metrics.md` | M2-C, expanded per feature | Metric names/types/units/labels, admission/drop meanings, known observability limits |
@@ -36,7 +36,7 @@ M7 audits these contracts and compatibility evidence; it does not first discover
 | M1-C Basic CLI | M1-B | Scriptable commands, stable JSON/exit codes, disposable CLI service | Host and Compose workflows create/read/update/delete metadata and revoke a DSN |
 | M2-A Event/IPC contracts | M1-C | Event and EventBatch schema decisions, HTTP examples, frame codec, golden fixtures | UTC/offset/fallback fixtures; UTF-8 byte boundaries; version/length/truncation cases |
 | M2-B Resolver | M2-A | Read-only DSN lookup, bounded TTL cache, outage policy | Active/revoked/expired cache, cache capacity, DB failure, and routing metadata tests |
-| M2-C HTTP admission | M2-B | Body limits, whole-batch validation, bounded queue admission, feature metrics | Invalid batch enqueues zero; queue pressure returns the specified counts; memory/admission limits enforced |
+| M2-C HTTP admission | M2-B | Body limits, whole-batch validation, bounded queue admission, feature metrics | Invalid batch enqueues zero; queue pressure rejects atomically with retryable status; memory/admission limits enforced |
 | M2-D IPC writer | M2-C | One writer task, reconnect/deadlines, failure and shutdown policy | Fake Unix server observes golden frames; stalled/failed writes obey bounded memory/time rules |
 | M2b-A IPC receiver | M2-D | Owned Unix listener, reader lifecycle, processor queue | Live-owner collision rejected; fragmented reads; malformed/oversized frames; EOF and reconnect |
 | M2b-B Batcher/provider contract | M2b-A | EventSink/errors/registry, NullSink, bounded batching/retry/shutdown | Spy provider sees size/time/byte flushes; fake clock tests retries; close/cancellation; HTTP-to-spy integration |
@@ -51,6 +51,11 @@ M7 audits these contracts and compatibility evidence; it does not first discover
 | M7-B Release evidence | M7-A | Reproducible benchmark, docs audit, compatibility fixtures, release notes | Target-load run with stable queues and no observed drops; latency methodology; protocol and extension docs |
 
 M5 stays post-v1, after the working M2b pipeline. Split it into listener lifecycle and HTTP parity/cleanup packets when scheduled.
+
+[M8](m8-otlp-integration.md) is a separate post-v1 track building on existing
+OTLP/HTTP logs. Schedule M8-A log integration, M8-B gRPC logs, M8-C traces, and
+M8-D metrics as separate vertical slices. Freeze each stage's contracts first;
+new signals require a compatible sink and end-to-end evidence before closure.
 
 M4-A and M6-A are partial milestones and can start before their full milestone prerequisites complete. M4-B and M6-B retain the full integration gates. This permits early diagnostics without marking the full milestone done prematurely.
 
