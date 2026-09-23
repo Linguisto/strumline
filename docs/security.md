@@ -1,6 +1,6 @@
 # Security
 
-This document covers the security properties of a Telemetria v1 deployment,
+This document covers the security properties of a Strumline v1 deployment,
 the invariants the implementation provides, and the operator responsibilities
 that fall outside the codebase.
 
@@ -60,7 +60,7 @@ this is only acceptable in development. In production, provision the read-only
 role with the bootstrap script:
 
 ```bash
-docker compose run --rm telemetria-cli python -m telemetria.db.bootstrap
+docker compose run --rm strumline-cli python -m strumline.db.bootstrap
 ```
 
 Never grant the ingest role `INSERT`, `UPDATE`, `DELETE`, or `DDL` privileges.
@@ -95,8 +95,8 @@ exposing Prometheus scrape endpoints.
 
 The processor creates the IPC socket (`IPC_SOCKET_PATH`) with mode `0o600`
 (owner read/write only). All three containers run as uid `10001`
-(`telemetria` user) with no additional groups. The socket directory
-(`/var/run/telemetria/`) is shared via a named Docker volume accessible only
+(`strumline` user) with no additional groups. The socket directory
+(`/var/run/strumline/`) is shared via a named Docker volume accessible only
 to containers that mount it.
 
 Do not mount the IPC socket volume into untrusted containers.
@@ -117,7 +117,7 @@ and a fixed message — no key material.
 
 ## Dependency scanning
 
-Run `uv export --no-dev | pip-audit -` or `trivy image telemetria:dev` against
+Run `uv export --no-dev | pip-audit -` or `trivy image strumline:dev` against
 the built image before each release to check for known CVEs in dependencies
 and the base image.
 

@@ -1,4 +1,4 @@
-"""Unit tests for telemetria doctor and config validate CLI commands."""
+"""Unit tests for strumline doctor and config validate CLI commands."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from telemetria.cli.main import app
+from strumline.cli.main import app
 
 pytestmark = pytest.mark.unit
 
@@ -35,7 +35,7 @@ _ALL_OK = [
 
 def test_doctor_all_ok_json() -> None:
     """All checks pass → exit 0, JSON output with all 'ok'."""
-    with patch("telemetria.cli.doctor._run_checks", new=AsyncMock(return_value=_ALL_OK)):
+    with patch("strumline.cli.doctor._run_checks", new=AsyncMock(return_value=_ALL_OK)):
         result = runner.invoke(app, ["doctor", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -52,7 +52,7 @@ def test_doctor_failed_service_exits_1() -> None:
         {"service": "postgres", "status": _OK, "detail": "ok"},
         {"service": "migrations", "status": _OK, "detail": "ok"},
     ]
-    with patch("telemetria.cli.doctor._run_checks", new=AsyncMock(return_value=checks)):
+    with patch("strumline.cli.doctor._run_checks", new=AsyncMock(return_value=checks)):
         result = runner.invoke(app, ["doctor", "--json"])
     assert result.exit_code == 1
     data = json.loads(result.output)
@@ -65,14 +65,14 @@ def test_doctor_skip_does_not_fail() -> None:
     checks = _ALL_OK + [
         {"service": "prometheus", "status": _SKIP, "detail": "not configured"},
     ]
-    with patch("telemetria.cli.doctor._run_checks", new=AsyncMock(return_value=checks)):
+    with patch("strumline.cli.doctor._run_checks", new=AsyncMock(return_value=checks)):
         result = runner.invoke(app, ["doctor", "--json"])
     assert result.exit_code == 0
 
 
 def test_doctor_plain_output() -> None:
     """--plain produces text table with SERVICE/STATUS/DETAIL headers."""
-    with patch("telemetria.cli.doctor._run_checks", new=AsyncMock(return_value=_ALL_OK)):
+    with patch("strumline.cli.doctor._run_checks", new=AsyncMock(return_value=_ALL_OK)):
         result = runner.invoke(app, ["doctor", "--plain"])
     assert result.exit_code == 0
     assert "SERVICE" in result.output
@@ -88,7 +88,7 @@ def test_doctor_multiple_failures() -> None:
         {"service": "postgres", "status": _OK, "detail": "ok"},
         {"service": "migrations", "status": _OK, "detail": "ok"},
     ]
-    with patch("telemetria.cli.doctor._run_checks", new=AsyncMock(return_value=checks)):
+    with patch("strumline.cli.doctor._run_checks", new=AsyncMock(return_value=checks)):
         result = runner.invoke(app, ["doctor", "--json"])
     assert result.exit_code == 1
     data = json.loads(result.output)

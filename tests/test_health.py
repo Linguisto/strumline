@@ -14,16 +14,16 @@ import importlib.metadata
 import pytest
 from httpx2 import ASGITransport, AsyncClient
 
-from telemetria.api.server import create_app as create_api_app
-from telemetria.ingest.server import create_app as create_ingest_app
-from telemetria.processor.server import create_app as create_processor_app
+from strumline.api.server import create_app as create_api_app
+from strumline.ingest.server import create_app as create_ingest_app
+from strumline.processor.server import create_app as create_processor_app
 
 pytestmark = pytest.mark.unit
 
 
 def _expected_version() -> str:
     try:
-        return importlib.metadata.version("telemetria")
+        return importlib.metadata.version("strumline")
     except importlib.metadata.PackageNotFoundError:
         return "unknown"
 

@@ -14,8 +14,8 @@ import pytest
 from sqlalchemy import create_engine, insert, inspect, select
 
 import tests.conftest as conf
-from telemetria.db.models import ProjectModel
-from telemetria.db.session import make_session_factory
+from strumline.db.models import ProjectModel
+from strumline.db.session import make_session_factory
 
 pytestmark = pytest.mark.integration
 

@@ -10,12 +10,12 @@ These are non-negotiable. Import-linter enforces the boundary contracts in CI. N
 ## Module layout
 
 ```
-telemetria/
+strumline/
 ├── api/        health endpoint + optional /admin/v1 routes
 ├── cli/        Typer CLI (calls control/ only)
 ├── config.py   pydantic-settings, one class per process
 ├── control/    application services shared by cli/ and api/
-├── db/         ORM models, async session factory, repositories, DSN resolver
+├── db/         ORM models, async session factory, repositories, auth token resolver
 ├── domain/     pure entities + errors (no I/O, no frameworks)
 ├── ingest/     HTTP receiver + asyncio queue + IPCWriter
 ├── ipc/        versioned length-prefixed framing over UDS
@@ -27,9 +27,9 @@ telemetria/
 ## Import boundaries (enforced by import-linter)
 
 ```
-domain/     → nothing in telemetria (pure)
+domain/     → nothing in strumline (pure)
 ipc/        → domain/ only
-ingest/     → domain/, ipc/, metrics/, db/ (read-only DSN resolver)
+ingest/     → domain/, ipc/, metrics/, db/ (read-only auth token resolver)
 processor/  → domain/, ipc/, metrics/, sinks/ (contract + factory only, NOT loki directly)
 control/    → db/, domain/
 cli/        → control/, domain/
@@ -38,9 +38,9 @@ api/        → control/, domain/
 
 Contracts currently active:
 
-1. `telemetria.ipc` must not import `api`, `cli`, `ingest`, or `processor`
-2. `telemetria.domain` must not import `api`, `cli`, `ingest`, `processor`, `ipc`, or `metrics`
-3. `telemetria.processor` must not import `telemetria.sinks.loki` directly
+1. `strumline.ipc` must not import `api`, `cli`, `ingest`, or `processor`
+2. `strumline.domain` must not import `api`, `cli`, `ingest`, `processor`, `ipc`, or `metrics`
+3. `strumline.processor` must not import `strumline.sinks.loki` directly
 
 Never add a cross-boundary import. If a new provider needs plumbing, put it behind the registry.
 
@@ -75,7 +75,7 @@ class EventSink(ABC):
     async def close(self) -> None: ...
 ```
 
-`BatchProcessor` never imports concrete providers. `telemetria.sinks.get_sink(provider)` is the only factory call. Retry policy: exponential backoff with ±10 % jitter, cap at `SINK_MAX_RETRIES`. Permanent failures and retry-exhausted batches are counted (`events_dropped`) and discarded — no crash, no queue stall.
+`BatchProcessor` never imports concrete providers. `strumline.sinks.get_sink(provider)` is the only factory call. Retry policy: exponential backoff with ±10 % jitter, cap at `SINK_MAX_RETRIES`. Permanent failures and retry-exhausted batches are counted (`events_dropped`) and discarded — no crash, no queue stall.
 
 ## Ingest admission limits
 
@@ -90,10 +90,10 @@ Each process has its own `main()` called by a console script:
 
 | Script | Entry point |
 |---|---|
-| `telemetria` | `telemetria.cli.main:app` |
-| `telemetria-api` | `telemetria.api.server:main` |
-| `telemetria-ingest` | `telemetria.ingest.server:main` |
-| `telemetria-processor` | `telemetria.processor.server:main` |
+| `strumline` | `strumline.cli.main:app` |
+| `strumline-api` | `strumline.api.server:main` |
+| `strumline-ingest` | `strumline.ingest.server:main` |
+| `strumline-processor` | `strumline.processor.server:main` |
 
 Each `main()` configures logging first, then starts uvicorn. `SIGTERM` and `SIGINT` are handled explicitly.
 

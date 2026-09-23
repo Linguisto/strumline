@@ -24,10 +24,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from telemetria.config import LokiSettings
-from telemetria.domain.events import Event, EventBatch
-from telemetria.sinks import get_sink
-from telemetria.sinks.loki import LokiSink, _to_nanoseconds, build_push_payload
+from strumline.config import LokiSettings
+from strumline.domain.events import Event, EventBatch
+from strumline.sinks import get_sink
+from strumline.sinks.loki import LokiSink, _to_nanoseconds, build_push_payload
 
 pytestmark = pytest.mark.unit
 
@@ -71,7 +71,7 @@ def test_payload_stream_labels():
     payload = build_push_payload(batch)
     assert len(payload["streams"]) == 1
     labels = payload["streams"][0]["stream"]
-    assert labels["service"] == "telemetria"
+    assert labels["service"] == "strumline"
     assert labels["project"] == "myproj"
     assert labels["app"] == "myapp"
     assert labels["level"] == "warn"
@@ -290,7 +290,7 @@ async def test_success_204():
 @pytest.mark.asyncio
 async def test_429_retryable():
     """HTTP 429 raises RetryableSinkError."""
-    from telemetria.sinks import RetryableSinkError
+    from strumline.sinks import RetryableSinkError
 
     sink = _sink_with_response(429)
     with pytest.raises(RetryableSinkError):
@@ -301,7 +301,7 @@ async def test_429_retryable():
 @pytest.mark.asyncio
 async def test_500_retryable():
     """HTTP 500 raises RetryableSinkError."""
-    from telemetria.sinks import RetryableSinkError
+    from strumline.sinks import RetryableSinkError
 
     sink = _sink_with_response(500)
     with pytest.raises(RetryableSinkError):
@@ -312,7 +312,7 @@ async def test_500_retryable():
 @pytest.mark.asyncio
 async def test_503_retryable():
     """HTTP 503 raises RetryableSinkError."""
-    from telemetria.sinks import RetryableSinkError
+    from strumline.sinks import RetryableSinkError
 
     sink = _sink_with_response(503)
     with pytest.raises(RetryableSinkError):
@@ -323,7 +323,7 @@ async def test_503_retryable():
 @pytest.mark.asyncio
 async def test_400_permanent():
     """HTTP 400 raises PermanentSinkError."""
-    from telemetria.sinks import PermanentSinkError
+    from strumline.sinks import PermanentSinkError
 
     sink = _sink_with_response(400)
     with pytest.raises(PermanentSinkError):
@@ -334,7 +334,7 @@ async def test_400_permanent():
 @pytest.mark.asyncio
 async def test_401_permanent():
     """HTTP 401 raises PermanentSinkError."""
-    from telemetria.sinks import PermanentSinkError
+    from strumline.sinks import PermanentSinkError
 
     sink = _sink_with_response(401)
     with pytest.raises(PermanentSinkError):
@@ -347,7 +347,7 @@ async def test_timeout_retryable():
     """Network timeout raises RetryableSinkError."""
     import httpx2
 
-    from telemetria.sinks import RetryableSinkError
+    from strumline.sinks import RetryableSinkError
 
     sink = LokiSink(_make_settings(loki_compression=""))
     sink._client.post = AsyncMock(  # type: ignore[method-assign]
@@ -363,7 +363,7 @@ async def test_network_error_retryable():
     """Network error raises RetryableSinkError."""
     import httpx2
 
-    from telemetria.sinks import RetryableSinkError
+    from strumline.sinks import RetryableSinkError
 
     sink = LokiSink(_make_settings(loki_compression=""))
     sink._client.post = AsyncMock(  # type: ignore[method-assign]
@@ -381,7 +381,7 @@ async def test_network_error_retryable():
 
 def test_get_sink_loki_returns_loki_sink():
     """get_sink('loki') returns a LokiSink without crashing."""
-    with patch("telemetria.sinks.loki.LokiSettings", return_value=_make_settings()):
+    with patch("strumline.sinks.loki.LokiSettings", return_value=_make_settings()):
         sink = get_sink("loki")
     assert isinstance(sink, LokiSink)
     assert sink.name == "loki"

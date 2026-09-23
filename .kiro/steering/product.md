@@ -1,13 +1,13 @@
 ---
-title: Product — what Telemetria is
+title: Product — what Strumline is
 inclusion: always
 ---
 
-# What Telemetria is
+# What Strumline is
 
 Application runtime structured event ingest — send what you want, from anywhere, over HTTP.
 
-One endpoint for single logs and batches. An SDK, agent, or sidecar is optional. Your application calls `POST /v1/logs` with an `x-telemetria-token` header and OTLP JSON or Protobuf; Telemetria handles authentication, batching, routing, retries, and delivery to Loki. The sink, the storage, and the dashboards are yours — Telemetria is the ingest layer between your application code and your observability stack.
+One endpoint for single logs and batches. An SDK, agent, or sidecar is optional. Your application calls `POST /v1/logs` with an `x-strumline-token` header and OTLP JSON or Protobuf; Strumline handles authentication, batching, routing, retries, and delivery to Loki. The sink, the storage, and the dashboards are yours — Strumline is the ingest layer between your application code and your observability stack.
 
 **Not for:** infrastructure logs (nginx, systemd, container stdout) — use Fluent Bit or Vector for those. **For:** application-level structured events where you control what you send and when.
 
@@ -18,12 +18,12 @@ OTLP `200` without partial rejection acknowledges in-memory admission, not durab
 One host, one Docker image, three containers:
 
 ```
-telemetria-api        :8000  control plane + optional admin REST API
-telemetria-ingest     :8001  HTTP ingestion + IPC writer
-telemetria-processor  :8002  IPC reader, batching, sink dispatch, health/metrics
+strumline-api        :8000  control plane + optional admin REST API
+strumline-ingest     :8001  HTTP ingestion + IPC writer
+strumline-processor  :8002  IPC reader, batching, sink dispatch, health/metrics
 ```
 
-Ingest and processor share a Unix-domain-socket directory (`/var/run/telemetria/`) via a named Docker volume. PostgreSQL stores control-plane metadata only. Raw telemetry is never written to PostgreSQL.
+Ingest and processor share a Unix-domain-socket directory (`/var/run/strumline/`) via a named Docker volume. PostgreSQL stores control-plane metadata only. Raw telemetry is never written to PostgreSQL.
 
 ## Control plane model
 
@@ -37,13 +37,13 @@ Auth token keys are `secrets.token_urlsafe(32)` (256-bit entropy). The raw key i
 
 ## Sink model
 
-`BatchProcessor` depends only on the `EventSink` ABC and its two error classes — never a concrete provider. `SINK_PROVIDER` env var selects the provider at startup. v1 ships `null` (default) and `loki`. Provider registry lives in `telemetria.sinks`.
+`BatchProcessor` depends only on the `EventSink` ABC and its two error classes — never a concrete provider. `SINK_PROVIDER` env var selects the provider at startup. v1 ships `null` (default) and `loki`. Provider registry lives in `strumline.sinks`.
 
 ## v1 success criteria (non-negotiable)
 
 1. `docker compose up` starts PostgreSQL + three containers from one tagged image.
-2. Optional `loki` and `observability` profiles work independently and together.
-3. Project/App/DSN management works via CLI and runtime-enabled REST API.
+2. The development Compose stack includes Loki, Prometheus, and Grafana; production deployments bring their own compatible infrastructure.
+3. Project/App/auth token management works via CLI and runtime-enabled REST API.
 4. Create resources, ingest an event, observe it through the sink in < 5 minutes.
 5. Ingest sustains ≥ 1,000 events/sec; HTTP receipt-to-enqueue P99 < 5 ms.
 6. Overload and sink failures preserve service health; drop/error counters explain losses.

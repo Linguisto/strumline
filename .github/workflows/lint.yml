@@ -30,13 +30,13 @@ jobs:
         run: uv sync --locked --dev
 
       - name: Ruff — lint
-        run: uv run ruff check telemetria/ tests/
+        run: uv run ruff check strumline/ tests/
 
       - name: Ruff — format check
-        run: uv run ruff format --check telemetria/ tests/
+        run: uv run ruff format --check strumline/ tests/
 
       - name: mypy — type check
-        run: uv run mypy telemetria/
+        run: uv run mypy strumline/
 
       - name: import-linter — boundary check
         run: uv run lint-imports

@@ -10,7 +10,7 @@
 ### Package and repository
 
 ```text
-telemetria/
+strumline/
 ├── __init__.py
 ├── config.py
 ├── api/{__init__.py,server.py}
@@ -35,10 +35,10 @@ All directories are real Python packages. The CLI entry point has a minimal `--h
 
 ```toml
 [project.scripts]
-telemetria = "telemetria.cli.main:app"
-telemetria-api = "telemetria.api.server:main"
-telemetria-ingest = "telemetria.ingest.server:main"
-telemetria-processor = "telemetria.processor.server:main"
+strumline = "strumline.cli.main:app"
+strumline-api = "strumline.api.server:main"
+strumline-ingest = "strumline.ingest.server:main"
+strumline-processor = "strumline.processor.server:main"
 ```
 
 Dependencies use valid PEP 621 syntax under `[project]`, for example `dependencies = [...]`; there is no `[project.dependencies]` table. Commit `uv.lock` and install from the lock in CI and Docker.
@@ -56,7 +56,7 @@ INGEST_HOST=0.0.0.0
 INGEST_PORT=8001
 PROCESSOR_HOST=0.0.0.0
 PROCESSOR_PORT=8002
-IPC_SOCKET_PATH=/var/run/telemetria/ipc.sock
+IPC_SOCKET_PATH=/var/run/strumline/ipc.sock
 APP_TIMEZONE=                 # optional IANA display timezone; unset means UTC
 METRICS_ENABLED=true
 LOG_LEVEL=INFO
@@ -68,13 +68,13 @@ LOG_FORMAT=json
 ### Image and Compose topology
 
 - A multi-stage Dockerfile creates a non-root runtime image.
-- Compose builds once with an explicit image tag such as `telemetria:${TELEMETRIA_IMAGE_TAG:-dev}`; all three services reference it and use different commands.
-- The v1 topology is one host and three Telemetria containers.
+- Compose builds once with an explicit image tag such as `strumline:${STRUMLINE_IMAGE_TAG:-dev}`; all three services reference it and use different commands.
+- The v1 topology is one host and three Strumline containers.
 - Ingest and processor mount the same named socket-directory volume.
 - Image creation or an init service gives the non-root UID/GID ownership of that directory before either process starts.
 - `.env` is optional, for example `env_file: { path: .env, required: false }`; `.env.example` remains the committed template.
 - API, ingest, and processor define container health checks. PostgreSQL uses its own readiness health check and dependent services wait for it where needed.
-- Base Compose starts no Loki, Prometheus, or Grafana services.
+- The initial skeleton excludes Loki, Prometheus, and Grafana; later milestones add them to the bundled development Compose stack.
 
 ### Developer and CI workflow
 

@@ -11,14 +11,14 @@ Structural patterns that are specific to this codebase. Read `conventions.md` fo
 
 The database layer and the domain layer use **separate types for the same data**.
 
-- `telemetria/db/models.py` — SQLAlchemy `Mapped` classes (`ProjectModel`, `AppModel`, `DSNModel`). These are ORM-only. Nothing outside `telemetria.db` imports them.
-- `telemetria/domain/entities.py` — frozen dataclasses (`Project`, `App`, `DSN`). These are the canonical representation everywhere else. No SQLAlchemy dependency, no I/O.
+- `strumline/db/models.py` — SQLAlchemy `Mapped` classes (`ProjectModel`, `AppModel`, `DSNModel`). These are ORM-only. Nothing outside `strumline.db` imports them.
+- `strumline/domain/entities.py` — frozen dataclasses (`Project`, `App`, `AuthToken`). These are the canonical representation everywhere else. No SQLAlchemy dependency, no I/O.
 
-Repositories are the only place that converts between them via `_<entity>_from_model()` private helpers. Never expose an ORM model beyond `telemetria.db`. Never import SQLAlchemy in `domain/`, `control/`, `cli/`, `api/`, `ingest/`, `processor/`, or `ipc/`.
+Repositories are the only place that converts between them via `_<entity>_from_model()` private helpers. Never expose an ORM model beyond `strumline.db`. Never import SQLAlchemy in `domain/`, `control/`, `cli/`, `api/`, `ingest/`, `processor/`, or `ipc/`.
 
 `TimestampMixin` adds `created_at`/`updated_at` as `DateTime(timezone=True)` to ORM models that need them. asyncpg returns these as timezone-aware but the `_ensure_utc()` helper in repositories normalizes any naive datetimes defensively before constructing domain entities.
 
-## Repository layer (`telemetria/db/repositories.py`)
+## Repository layer (`strumline/db/repositories.py`)
 
 Repositories are thin adapters: SQLAlchemy queries + ORM-to-domain mapping. They:
 
@@ -29,7 +29,7 @@ Repositories are thin adapters: SQLAlchemy queries + ORM-to-domain mapping. They
 
 The `UNSET` sentinel (`class _Unset`) distinguishes "caller did not pass this field" from `None` (which is a meaningful value, e.g. clearing `App.timezone`). Use it for optional-update parameters that have a meaningful `None` state.
 
-## Service layer (`telemetria/control/`)
+## Service layer (`strumline/control/`)
 
 Services own the transaction and business logic. Pattern:
 
@@ -48,7 +48,7 @@ Services construct domain entities with fresh UUIDs and UTC timestamps, then del
 
 ## Domain error taxonomy
 
-All domain errors inherit from `TelemetriaError` and carry `exit_code` (for CLI) and `http_status` (for REST):
+All domain errors inherit from `StrumlineError` and carry `exit_code` (for CLI) and `http_status` (for REST):
 
 | Error | exit_code | http_status | When |
 |---|---|---|---|
@@ -56,15 +56,15 @@ All domain errors inherit from `TelemetriaError` and carry `exit_code` (for CLI)
 | `ConflictError(resource, field, value)` | 9 | 409 | Unique constraint violation |
 | `OwnershipError(resource, id, parent)` | 4 | 404 | Wrong parent (leaks as 404) |
 | `ValidationError(field, message)` | 2 | 422 | Domain rule violation |
-| `AlreadyRevokedError(dsn_id)` | 9 | 409 | Revoking an already-revoked DSN |
+| `AlreadyRevokedError(token_id)` | 9 | 409 | Revoking an already-revoked auth token |
 
-CLI handlers catch `TelemetriaError`, print `error.args[0]`, and `raise SystemExit(error.exit_code)`.  
-HTTP handlers catch `TelemetriaError` and raise `HTTPException(status_code=error.http_status, detail=str(error))`.  
+CLI handlers catch `StrumlineError`, print `error.args[0]`, and `raise SystemExit(error.exit_code)`.  
+HTTP handlers catch `StrumlineError` and raise `HTTPException(status_code=error.http_status, detail=str(error))`.  
 Never let domain errors propagate unhandled to the framework.
 
 ## Session factory and DB access
 
-`telemetria.db.session.make_session_factory(url)` returns an `async_sessionmaker`. Use it as an async context manager:
+`strumline.db.session.make_session_factory(url)` returns an `async_sessionmaker`. Use it as an async context manager:
 
 ```python
 async with session_factory() as session:
@@ -75,25 +75,25 @@ async with session_factory() as session:
 
 The ingest process uses a read-only session via `INGEST_DB_USER` credentials. Never give the ingest process a write-capable session.
 
-## CLI structure (`telemetria/cli/`)
+## CLI structure (`strumline/cli/`)
 
 One Typer sub-app per resource (`projects.py`, `apps.py`, `dsns.py`). Each command:
 
 1. Calls `make_session_factory` with settings from `DatabaseSettings()`
 2. Runs the service method inside `async with session.begin()`
-3. Catches `TelemetriaError` and exits with `error.exit_code`
+3. Catches `StrumlineError` and exits with `error.exit_code`
 4. Prints output with `typer.echo` or `rich` — no `print()`
 
-`telemetria/cli/helpers.py` holds shared formatting helpers. Keep them small.
+`strumline/cli/helpers.py` holds shared formatting helpers. Keep them small.
 
 ## Adding a new entity
 
 Checklist:
-1. Domain entity in `telemetria/domain/entities.py` (frozen dataclass, `_assert_utc` on timestamps)
-2. Domain errors in `telemetria/domain/errors.py` if new error cases arise
-3. ORM model in `telemetria/db/models.py` (use `TimestampMixin` if it has audit timestamps)
+1. Domain entity in `strumline/domain/entities.py` (frozen dataclass, `_assert_utc` on timestamps)
+2. Domain errors in `strumline/domain/errors.py` if new error cases arise
+3. ORM model in `strumline/db/models.py` (use `TimestampMixin` if it has audit timestamps)
 4. Alembic migration in `alembic/versions/`
-5. Repository in `telemetria/db/repositories.py` (`_<entity>_from_model` mapper + CRUD methods)
-6. Service in `telemetria/control/<entity>s.py`
-7. CLI commands in `telemetria/cli/<entity>s.py`, registered in `telemetria/cli/main.py`
+5. Repository in `strumline/db/repositories.py` (`_<entity>_from_model` mapper + CRUD methods)
+6. Service in `strumline/control/<entity>s.py`
+7. CLI commands in `strumline/cli/<entity>s.py`, registered in `strumline/cli/main.py`
 8. Tests: unit tests for domain logic, integration tests for repository and service

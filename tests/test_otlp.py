@@ -26,20 +26,20 @@ from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import SimpleLogRecordProcessor
 from opentelemetry.sdk.resources import Resource
 
-from telemetria.config import IngestSettings
-from telemetria.domain.events import EventBatch
-from telemetria.ingest.resolver import (
+from strumline.config import IngestSettings
+from strumline.domain.events import EventBatch
+from strumline.ingest.resolver import (
     AuthTokenResolver,
     AuthTokenResolverError,
     AuthTokenResolverUnavailable,
     ResolvedToken,
 )
-from telemetria.ingest.server import create_app
-from telemetria.ipc.codec import decode_envelope_body, encode_frame
-from telemetria.sinks.loki import build_push_payload
+from strumline.ingest.server import create_app
+from strumline.ipc.codec import decode_envelope_body, encode_frame
+from strumline.sinks.loki import build_push_payload
 
 pytestmark = pytest.mark.unit
-_TOKEN = {"x-telemetria-token": "test-token"}
+_TOKEN = {"x-strumline-token": "test-token"}
 _RESOLVED = ResolvedToken(
     token_id="token",
     app_id="00000000-0000-0000-0000-000000000002",
@@ -212,7 +212,7 @@ async def test_timestamp_fallback_and_structured_body(use_observed):
 @pytest.mark.parametrize(
     "headers,status",
     [
-        ({"x-telemetria-token": ""}, 401),
+        ({"x-strumline-token": ""}, 401),
         ({"content-type": "text/plain"}, 415),
         ({"content-encoding": "br"}, 415),
     ],

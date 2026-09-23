@@ -1,13 +1,13 @@
 # Replacing the ingest process
 
-This guide describes everything needed to replace `telemetria-ingest` with a
+This guide describes everything needed to replace `strumline-ingest` with a
 compatible implementation in Go, Rust, or any other language. The replacement
 must satisfy two public contracts: the HTTP ingest API and the IPC wire
 protocol. No Python source reading is required.
 
 ## What the ingest process does
 
-1. Accepts `POST /v1/logs` with an `x-telemetria-token` header.
+1. Accepts `POST /v1/logs` with an `x-strumline-token` header.
 2. Resolves the token against PostgreSQL (read-only role, TTL cache).
 3. Validates and decodes the OTLP/HTTP body.
 4. Normalises each log record into an `Event`.
@@ -23,7 +23,7 @@ Full reference: [`docs/api/otlp-logs.md`](api/otlp-logs.md).
 
 **Endpoint:** `POST /v1/logs` on the ingest port (default 8001).
 
-**Auth:** `x-telemetria-token: <key>` header. Resolve via PostgreSQL
+**Auth:** `x-strumline-token: <key>` header. Resolve via PostgreSQL
 `auth_tokens` JOIN `apps` JOIN `projects` using the read-only ingest role.
 The key is hashed as HMAC-SHA256(key, APP_KEY) before lookup. Cache results
 with a 60-second TTL. On DB failure during a cache miss, return 503.
@@ -68,7 +68,7 @@ larger than the total queue capacity is a permanent 400, not a retryable 503.
 Full reference: [`docs/ipc-protocol.md`](ipc-protocol.md).
 
 Connect to the Unix-domain socket at `IPC_SOCKET_PATH` (default
-`/var/run/telemetria/ipc.sock`). The processor owns the socket; the ingest
+`/var/run/strumline/ipc.sock`). The processor owns the socket; the ingest
 process connects as the client.
 
 **Frame format:**

@@ -3,7 +3,7 @@
 **Type:** Staged post-v1 enhancement  
 **Status:** Planned  
 **Depends on:** M7/v1 and the existing OTLP/HTTP logs implementation  
-**Goal:** Extend Telemetria into a receiver and forwarding pipeline for multiple
+**Goal:** Extend Strumline into a receiver and forwarding pipeline for multiple
 OpenTelemetry signals, with consistent transport behavior and explicit sink capabilities.
 
 ## Starting point
@@ -66,7 +66,7 @@ delivery unless a separate durability milestone changes that contract.
   complete delivery path. Do not convert metric points into log events.
 - Define ownership of aggregation or temporality conversion, if required by
   the chosen backend, and test reset/restart behavior.
-- Keep customer metric ingestion distinct from Telemetria's own Prometheus
+- Keep customer metric ingestion distinct from Strumline's own Prometheus
   `/metrics` endpoint; receiving metrics must not register customer series in
   the process's internal monitoring registry.
 

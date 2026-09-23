@@ -7,13 +7,13 @@
 
 ## CLI evolution
 
-M1 already provides complete scriptable project/app/DSN management and migrations. M6 keeps those command contracts and adds presentation and operator workflows:
+M1 already provides complete scriptable project/app/auth token management and migrations. M6 keeps those command contracts and adds presentation and operator workflows:
 
 ```text
-telemetria init
-telemetria doctor
-telemetria ui
-telemetria config validate
+strumline init
+strumline doctor
+strumline ui
+strumline config validate
 ```
 
 Typer handles commands, Rich handles normal terminal output, and Textual handles interactive views. Every command supports non-TTY use: stable JSON where data is returned, `--plain` for human-readable static output, deterministic exit codes, and no mandatory prompts.
@@ -22,14 +22,14 @@ Dependencies are declared through the `[project] dependencies = [...]` array or 
 
 ## Initialization and execution contexts
 
-`telemetria init` gathers database URLs, `APP_TIMEZONE`, `SINK_PROVIDER`, optional Loki settings, runtime admin-API settings for M6b, and optional external observability URLs. It validates IANA timezone names and writes `.env` before Compose is started. Secret files use restrictive permissions.
+`strumline init` gathers database URLs, `APP_TIMEZONE`, `SINK_PROVIDER`, optional Loki settings, runtime admin-API settings for M6b, and optional external observability URLs. It validates IANA timezone names and writes `.env` before Compose is started. Secret files use restrictive permissions.
 
 The quick start supports both:
 
-- `uv run telemetria ...` on the host using loopback-published PostgreSQL
-- `docker compose run --rm telemetria-cli ...` using the internal database hostname
+- `uv run strumline ...` on the host using loopback-published PostgreSQL
+- `docker compose run --rm strumline-cli ...` using the internal database hostname
 
-It never assumes a globally installed `telemetria` command.
+It never assumes a globally installed `strumline` command.
 
 ## Doctor and TUI
 
@@ -50,5 +50,5 @@ CLI and TUI receive canonical UTC datetimes and localize only at render time. Di
 - [ ] Missing optional Prometheus, Grafana, or Loki does not mark the core service unhealthy.
 - [ ] UI rate panels work through Prometheus or direct metrics; log panels explain missing Loki.
 - [ ] Display localization never changes canonical UTC data or JSON fields.
-- [ ] README quick start creates resources, starts the stack, sends an event, and explains optional `loki` and `observability` profiles.
+- [ ] README quick start creates resources, starts the development stack, sends an event, and explains production BYO infrastructure.
 - [ ] CLI imports `control/` and never imports ingest, processor, or sink implementations.
