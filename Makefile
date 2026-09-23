@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help build build.dev up down init bash lint test test.unit test.integration migrate
+.PHONY: help build build.dev up down init bash lint test test.unit test.integration migrate benchmarks
 
 IMAGE_TAG ?= dev
 
@@ -63,3 +63,9 @@ test.integration: ## Run integration tests only (requires DB)
 
 migrate: ## Run database migrations to head
 	$(DC_EXEC) telemetria migrate
+
+# ---------------------------------------------------------------------------
+# Benchmarks
+# ---------------------------------------------------------------------------
+benchmarks: ## Run the receipt-to-enqueue benchmark and write benchmarks/results/
+	$(DC_EXEC) python benchmarks/receipt_to_enqueue.py

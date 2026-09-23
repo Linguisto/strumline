@@ -142,5 +142,8 @@ See the [full roadmap](.kiro/plans/roadmap.md) and
 - [OTLP logs and exporter configuration](docs/api/otlp-logs.md)
 - [IPC protocol](docs/ipc-protocol.md)
 - [Sinks](docs/sinks.md)
+- [Security](docs/security.md)
 - [Observability](docs/observability.md)
 - [Observability recipes](docs/observability-recipes.md)
+- [Ingest replacement guide](docs/ingest-replacement.md)
+- [Benchmarks and methodology](docs/benchmarks.md)

@@ -15,6 +15,7 @@ import json
 import struct
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -225,3 +226,60 @@ async def test_read_frame_custom_max():
     reader = _make_reader(prefix + b"x" * 20)
     with pytest.raises(FrameTooLargeError):
         await read_frame(reader, max_bytes=10)
+
+
+# ---------------------------------------------------------------------------
+# Language-neutral conformance fixtures
+# ---------------------------------------------------------------------------
+
+
+def _load_fixtures() -> list[dict]:
+    fixtures_path = Path(__file__).parent / "fixtures" / "ipc" / "fixtures.json"
+    return json.load(fixtures_path.open())
+
+
+@pytest.mark.parametrize("fixture", _load_fixtures(), ids=lambda f: f["name"])
+async def test_conformance_fixture(fixture: dict) -> None:
+    """Verify every language-neutral fixture against the Python implementation."""
+    frame = bytes.fromhex(fixture["frame_hex"])
+
+    if fixture["valid"]:
+        # Valid frames: strip the 4-byte prefix and decode the body.
+        body = frame[4:]
+        event = decode_envelope_body(body)
+        expected = fixture["event"]
+        if "id" in expected:
+            assert str(event.id) == expected["id"]
+        if "project_slug" in expected:
+            assert event.project_slug == expected["project_slug"]
+        if "app_slug" in expected:
+            assert event.app_slug == expected["app_slug"]
+        if "level" in expected:
+            assert event.level == expected["level"]
+        if "message" in expected:
+            assert event.message == expected["message"]
+        # UTC invariant: both timestamps must end with Z
+        raw = json.loads(body)
+        assert raw["event"]["received_at"].endswith("Z")
+        assert raw["event"]["timestamp"].endswith("Z")
+    else:
+        error_name = fixture["error"]
+        error_cls = {
+            "EmptyFrameError": EmptyFrameError,
+            "FrameTooLargeError": FrameTooLargeError,
+            "TruncatedFrameError": TruncatedFrameError,
+            "UnknownVersionError": UnknownVersionError,
+            "MalformedEnvelopeError": MalformedEnvelopeError,
+        }[error_name]
+
+        if error_name in ("EmptyFrameError", "FrameTooLargeError", "TruncatedFrameError"):
+            reader = asyncio.StreamReader()
+            reader.feed_data(frame)
+            reader.feed_eof()
+            with pytest.raises(error_cls):
+                await read_frame(reader)
+        else:
+            # decode_envelope_body errors — synchronous
+            body = frame[4:]
+            with pytest.raises(error_cls):
+                decode_envelope_body(body)

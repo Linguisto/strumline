@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-09-23T12:52:55.035577Z",
+  "host": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "python": "3.14.6",
+  "records_per_request": 1,
+  "concurrency": 32,
+  "warmup_requests": 2000,
+  "latency_requests": 5000,
+  "latency_duration_seconds": 2.9919,
+  "throughput_events": 20000,
+  "throughput_requests": 20000,
+  "throughput_duration_seconds": 7.4376,
+  "throughput_events_per_sec": 2689.0,
+  "throughput_requests_per_sec": 2689.0,
+  "latency_ms_p50": 0.5648,
+  "latency_ms_p90": 0.6714,
+  "latency_ms_p99": 0.8793,
+  "latency_ms_max": 26.8882,
+  "target_p99_ms": 5.0,
+  "target_throughput_events_per_sec": 1000.0,
+  "p99_pass": true,
+  "throughput_pass": true
+}
