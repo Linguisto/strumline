@@ -3,17 +3,17 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: telemetria-api
+  - job_name: strumline-api
     static_configs:
       - targets: ["api:8000"]
     metrics_path: /metrics
 
-  - job_name: telemetria-ingest
+  - job_name: strumline-ingest
     static_configs:
       - targets: ["ingest:8001"]
     metrics_path: /metrics
 
-  - job_name: telemetria-processor
+  - job_name: strumline-processor
     static_configs:
       - targets: ["processor:8002"]
     metrics_path: /metrics

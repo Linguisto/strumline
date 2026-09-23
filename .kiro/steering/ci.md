@@ -24,7 +24,7 @@ Triggers: push to `main` only.
 Four sequential jobs:
 
 1. **Lint** — same checks as `lint.yml`
-2. **Build** — `make build.dev`, exports `telemetria:dev` as a gzipped tar artifact (retained 1 day)
+2. **Build** — `make build.dev`, exports `strumline:dev` as a gzipped tar artifact (retained 1 day)
 3. **Test** — loads the artifact, starts PostgreSQL via `docker compose up -d postgres`, waits for `pg_isready`, runs `make test` (full suite including integration)
 4. **Push** — loads artifact, logs in to GHCR, tags as `ghcr.io/<owner>/<repo>:dev`, pushes
 
@@ -60,13 +60,13 @@ make lint DC_EXEC="uv run"
 make test DC_EXEC="uv run"
 ```
 
-`DC_EXEC` defaults to `docker compose run --rm telemetria-cli`.
+`DC_EXEC` defaults to `docker compose run --rm strumline-cli`.
 
 ## Quality gates (all must pass before merging)
 
-- `ruff check telemetria/ tests/` — zero errors
-- `ruff format --check telemetria/ tests/` — zero diff
-- `mypy telemetria/` — zero errors (strict mode)
+- `ruff check strumline/ tests/` — zero errors
+- `ruff format --check strumline/ tests/` — zero diff
+- `mypy strumline/` — zero errors (strict mode)
 - `lint-imports` — all boundary contracts pass
 - `pytest` — all tests pass (unit + integration on CI/main, unit-only on PRs)
 
@@ -77,7 +77,7 @@ make test DC_EXEC="uv run"
 | Dev build (main branch) | `:dev` |
 | Release (tag `vX.Y.Z`) | `:X.Y.Z`, `:X.Y`, `:sha-<short>`, `:latest` |
 
-Registry: `ghcr.io/<owner>/<repo>` (lowercased). `TELEMETRIA_IMAGE_TAG` env var controls which tag compose uses locally.
+Registry: `ghcr.io/<owner>/<repo>` (lowercased). `STRUMLINE_IMAGE_TAG` env var controls which tag compose uses locally.
 
 ## Adding a new CI check
 

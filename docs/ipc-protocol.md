@@ -1,6 +1,6 @@
 # IPC protocol
 
-Telemetria uses a lightweight length-prefixed binary protocol over a
+Strumline uses a lightweight length-prefixed binary protocol over a
 Unix-domain socket (UDS). Ingest is the single writer; processor is the
 single reader.
 

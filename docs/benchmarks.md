@@ -1,6 +1,6 @@
 # Benchmarks
 
-This document is the methodology half of Telemetria's performance evidence. The
+This document is the methodology half of Strumline's performance evidence. The
 executable half is `benchmarks/receipt_to_enqueue.py`. Anyone can reproduce the
 baseline from this document without reading the harness source.
 
@@ -39,7 +39,7 @@ the most common way this measurement is done wrong.
 ## Test conditions
 
 - **Harness:** `benchmarks/receipt_to_enqueue.py`, driving the real
-  `telemetria.ingest.server.create_app()` FastAPI app over `httpx2`
+  `strumline.ingest.server.create_app()` FastAPI app over `httpx2`
   `ASGITransport` (in-process, no sockets, no Docker, no PostgreSQL).
 - **Auth resolver:** replaced with an in-memory stub returning a fixed
   `ResolvedToken`. In production the resolver is an in-memory cache hit on the
@@ -124,8 +124,8 @@ Measured elsewhere / out of scope for this harness:
   `tests/test_ipc_writer.py` and `tests/test_resilience.py`.
 - **Processor decode/batch throughput with NullSink** — the processor side.
   Exercised by `tests/test_processor.py`.
-- **End-to-end Loki latency** — environment-dependent; measure against a real
-  Loki instance with the `loki` Compose profile, reported as a separate result.
+- **End-to-end Loki latency** — environment-dependent; measure against the
+  bundled development Loki or an external instance, reported as a separate result.
 - **Overload loss paths** — ingest queue full, IPC/write failure, processor
   queue full, permanent sink failure, retry exhaustion. Each has a distinct
   bounded-cardinality counter and a resilience/metrics test; see

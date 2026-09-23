@@ -16,7 +16,7 @@ Introduce these alongside their first owner, not as a late M7 documentation exer
 |---|---|---|
 | `docs/architecture/decisions.md` | M0-A, expanded per feature | Accepted invariants, topology, ownership, deferred scope |
 | `docs/configuration.md` | M0-B, expanded per feature | Variable type/default, consumer, required-when, precedence, secret status, restart behavior |
-| `docs/api/control-contract.md` | M1-B | CRUD/DSN rules, timezone configuration, pagination, domain errors |
+| `docs/api/control-contract.md` | M1-B | CRUD/auth token rules, timezone configuration, pagination, domain errors |
 | `docs/api/otlp-logs.md` | M2-A | OTLP single/batch requests, responses, UTC rules, limits, best-effort semantics |
 | `docs/ipc-protocol.md` | M2-A | Frame/schema/version/error behavior and golden fixtures |
 | `docs/sinks.md` | M2b-B | EventBatch, ABC, lifecycle, failure taxonomy, retries, success semantics |
@@ -32,22 +32,22 @@ M7 audits these contracts and compatibility evidence; it does not first discover
 | M0-B Process skeleton | M0-A | Shared config primitives, per-process settings, process factories, health, logging | Each process starts/stops independently; metadata version and UTC logs; invalid relevant settings fail clearly |
 | M0-C Container/CI | M0-B | One tagged image, non-root volume ownership, Compose, Makefile, CI | Fresh build without `.env`; healthy containers; same image IDs; writable shared directory; lint/test jobs |
 | M1-A Persistence | M0-C | Entities, migrations, UTC sessions, repositories, bootstrap and least-privilege roles | Fresh/existing DB migration checks; UTC round trip; forbidden writes denied for ingest role |
-| M1-B Control services | M1-A | Transactional CRUD, DSN lifecycle, scope checks, timezone validation | Service-level success/conflict/not-found/ownership tests with real PostgreSQL constraints |
-| M1-C Basic CLI | M1-B | Scriptable commands, stable JSON/exit codes, disposable CLI service | Host and Compose workflows create/read/update/delete metadata and revoke a DSN |
+| M1-B Control services | M1-A | Transactional CRUD, auth token lifecycle, scope checks, timezone validation | Service-level success/conflict/not-found/ownership tests with real PostgreSQL constraints |
+| M1-C Basic CLI | M1-B | Scriptable commands, stable JSON/exit codes, disposable CLI service | Host and Compose workflows create/read/update/delete metadata and revoke an auth token |
 | M2-A Event/IPC contracts | M1-C | Event and EventBatch schema decisions, HTTP examples, frame codec, golden fixtures | UTC/offset/fallback fixtures; UTF-8 byte boundaries; version/length/truncation cases |
-| M2-B Resolver | M2-A | Read-only DSN lookup, bounded TTL cache, outage policy | Active/revoked/expired cache, cache capacity, DB failure, and routing metadata tests |
+| M2-B Resolver | M2-A | Read-only auth token lookup, bounded TTL cache, outage policy | Active/revoked/expired cache, cache capacity, DB failure, and routing metadata tests |
 | M2-C HTTP admission | M2-B | Body limits, whole-batch validation, bounded queue admission, feature metrics | Invalid batch enqueues zero; queue pressure rejects atomically with retryable status; memory/admission limits enforced |
 | M2-D IPC writer | M2-C | One writer task, reconnect/deadlines, failure and shutdown policy | Fake Unix server observes golden frames; stalled/failed writes obey bounded memory/time rules |
 | M2b-A IPC receiver | M2-D | Owned Unix listener, reader lifecycle, processor queue | Live-owner collision rejected; fragmented reads; malformed/oversized frames; EOF and reconnect |
 | M2b-B Batcher/provider contract | M2b-A | EventSink/errors/registry, NullSink, bounded batching/retry/shutdown | Spy provider sees size/time/byte flushes; fake clock tests retries; close/cancellation; HTTP-to-spy integration |
 | M3-A Loki provider | M2b-B | Wire encoding, response classification, selected-provider settings | Captured gzip request has decimal-string epoch nanoseconds; retries/permanent errors match contract |
-| M3-B Loki deployment | M3-A | Pinned sample profile and explicit provider activation; external connection docs | Real Loki ingest/query round trip; NullSink/base stack still works |
+| M3-B Loki deployment | M3-A | Pinned development service and explicit production provider configuration; external connection docs | Real Loki ingest/query round trip; NullSink works without Loki |
 | M4-A Metric integration | M2b-B | Shared registry conventions, metric endpoint behavior, metrics-only dashboard | All processes scrape; disabled endpoint behavior; bounded label families; no Loki required |
-| M4-B Optional infrastructure | M3-B, M4-A | Prometheus/Grafana profile, BYO artifacts, optional log panels | Base, Loki-only, observability-only, both, and external-Loki cases |
+| M4-B Observability infrastructure | M3-B, M4-A | Bundled development Prometheus/Grafana and reusable BYO artifacts | Development stack and external production services |
 | M6-A Operator commands | M1-C, M2b-B | init/config/doctor, host/container contexts, explicit degradation | Offline initialization, invalid config, missing optional service versus failed selected provider |
 | M6-B Terminal presentation | M6-A, M4-B | Rich/Textual polish, rate views, optional Loki read adapter, timezone rendering | Non-TTY fallback; canonical JSON stays UTC; unavailable panels and DB-free optional views behave as specified |
 | M6b-A REST management | M1-C | Runtime-gated routes over existing services; API key auth; canonical UTC | CRUD parity and nested ownership; disabled/enabled/missing-key matrix; docs gate |
-| M7-A Release integration | M3-B, M4-B, M6-B, M6b-A | Repeatable walkthrough, failure suite, full boundary audit | End-to-end quick start; all profile combinations; graceful shutdown; documented crash-loss limits |
+| M7-A Release integration | M3-B, M4-B, M6-B, M6b-A | Repeatable walkthrough, failure suite, full boundary audit | End-to-end development quick start; production deployment guidance; graceful shutdown; documented crash-loss limits |
 | M7-B Release evidence | M7-A | Reproducible benchmark, docs audit, compatibility fixtures, release notes | Target-load run with stable queues and no observed drops; latency methodology; protocol and extension docs |
 
 M5 stays post-v1, after the working M2b pipeline. Split it into listener lifecycle and HTTP parity/cleanup packets when scheduled.

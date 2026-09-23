@@ -16,11 +16,11 @@ ADMIN_API_ENABLED=false
 ADMIN_API_KEY=
 ```
 
-When enabled, a non-empty `ADMIN_API_KEY` is required and every admin route uses `Authorization: Bearer <ADMIN_API_KEY>` with constant-time comparison. There is no `TELEMETRIA_ADMIN_TOKEN`. Rotation updates configuration and restarts the API process.
+When enabled, a non-empty `ADMIN_API_KEY` is required and every admin route uses `Authorization: Bearer <ADMIN_API_KEY>` with constant-time comparison. There is no `STRUMLINE_ADMIN_TOKEN`. Rotation updates configuration and restarts the API process.
 
 ## Architecture
 
-Handlers are thin adapters over the `telemetria/control/` services created in M1. They do not duplicate repository calls, validation, timezone rules, or DSN generation. Domain errors map centrally to stable HTTP error envelopes.
+Handlers are thin adapters over the `strumline/control/` services created in M1. They do not duplicate repository calls, validation, timezone rules, or auth token generation. Domain errors map centrally to stable HTTP error envelopes.
 
 ```text
 GET|POST           /admin/v1/projects
@@ -46,7 +46,7 @@ OpenAPI JSON and interactive documentation are available only when the admin API
 - [ ] Disabled by default: `/admin/v1` and admin docs are unmounted and return `404`.
 - [ ] Enabled without `ADMIN_API_KEY`: startup fails with a clear configuration error.
 - [ ] Missing or incorrect bearer keys return `401`; valid keys authorize every admin route.
-- [ ] CRUD and DSN operations match the CLI because handlers call shared control services.
+- [ ] CRUD and auth token operations match the CLI because handlers call shared control services.
 - [ ] App timezone set/clear behavior and validation match the CLI.
 - [ ] Canonical response timestamps end in `Z`; any localized fields are additional and explicitly named.
 - [ ] The same built image can run with the API enabled or disabled.

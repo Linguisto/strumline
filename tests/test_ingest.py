@@ -27,11 +27,11 @@ async def test_openapi_examples_are_valid_exports(example, count):
             "/v1/logs"
         }
         operation = schema["paths"]["/v1/logs"]["post"]
-        token = next(p for p in operation["parameters"] if p["name"] == "x-telemetria-token")
+        token = next(p for p in operation["parameters"] if p["name"] == "x-strumline-token")
         assert token["required"] is True
         assert set(operation["responses"]) == {"200", "400", "401", "413", "415", "503"}
         body = operation["requestBody"]["content"]["application/json"]["examples"][example]["value"]
-        response = await client.post("/v1/logs", json=body, headers={"x-telemetria-token": "test"})
+        response = await client.post("/v1/logs", json=body, headers={"x-strumline-token": "test"})
         assert response.status_code == 200
         assert (
             response.json()

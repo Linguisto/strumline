@@ -1,8 +1,8 @@
 # Observability recipes
 
-Telemetria exposes standard Prometheus metrics on `/metrics` at each process port. This document shows how to wire those metrics into common observability stacks, from the simplest possible setup to fully-managed cloud observability.
+Strumline exposes standard Prometheus metrics on `/metrics` at each process port. This document shows how to wire those metrics into common observability stacks, from the simplest possible setup to fully-managed cloud observability.
 
-All recipes assume you have Telemetria running with `METRICS_ENABLED=true` (the default). The BYO artifacts live in `docker/observability/` — a ready-to-use Prometheus scrape config and a Grafana dashboard JSON you can import into any Grafana instance.
+All recipes assume you have Strumline running with `METRICS_ENABLED=true` (the default). The BYO artifacts live in `docker/observability/` — a ready-to-use Prometheus scrape config and a Grafana dashboard JSON you can import into any Grafana instance.
 
 ---
 
@@ -16,26 +16,26 @@ Add to your `prometheus.yml`:
 
 ```yaml
 scrape_configs:
-  - job_name: telemetria-api
+  - job_name: strumline-api
     static_configs:
       - targets: ["<api-host>:8000"]
 
-  - job_name: telemetria-ingest
+  - job_name: strumline-ingest
     static_configs:
       - targets: ["<ingest-host>:8001"]
 
-  - job_name: telemetria-processor
+  - job_name: strumline-processor
     static_configs:
       - targets: ["<processor-host>:8002"]
 ```
 
-A standalone copy is at `docker/observability/prometheus.yml` — use it as-is if your Prometheus can reach the Telemetria containers by hostname.
+A standalone copy is at `docker/observability/prometheus.yml` — use it as-is if your Prometheus can reach the Strumline containers by hostname.
 
 ### Grafana
 
-Import `docker/observability/grafana/provisioning/dashboards/telemetria.json` into any Grafana instance (≥ 11):
+Import `docker/observability/grafana/provisioning/dashboards/strumline.json` into any Grafana instance (≥ 11):
 
-1. **Dashboards → Import → Upload JSON file** → select `telemetria.json`
+1. **Dashboards → Import → Upload JSON file** → select `strumline.json`
 2. Set the Prometheus data source UID to `prometheus` (or find-and-replace the UID in the JSON)
 3. If you have Loki, add a Loki data source with UID `loki` — the log panel activates automatically
 
@@ -57,15 +57,15 @@ metrics:
   global:
     scrape_interval: 15s
   configs:
-    - name: telemetria
+    - name: strumline
       scrape_configs:
-        - job_name: telemetria-api
+        - job_name: strumline-api
           static_configs:
             - targets: ["<api-host>:8000"]
-        - job_name: telemetria-ingest
+        - job_name: strumline-ingest
           static_configs:
             - targets: ["<ingest-host>:8001"]
-        - job_name: telemetria-processor
+        - job_name: strumline-processor
           static_configs:
             - targets: ["<processor-host>:8002"]
       remote_write:
@@ -96,7 +96,7 @@ LOKI_URL=https://logs-prod-xxx.grafana.net
 LOKI_TENANT_ID=<your-org-id>
 ```
 
-Set `LOKI_TENANT_ID` to your Grafana Cloud org ID. Telemetria sends it as `X-Scope-OrgID` on every push request.
+Set `LOKI_TENANT_ID` to your Grafana Cloud org ID. Strumline sends it as `X-Scope-OrgID` on every push request.
 
 ---
 
@@ -107,7 +107,7 @@ Victoria Metrics is a drop-in Prometheus-compatible TSDB. The scrape config is i
 ```yaml
 # vmagent scrape config
 scrape_configs:
-  - job_name: telemetria
+  - job_name: strumline
     static_configs:
       - targets:
           - "<api-host>:8000"
@@ -127,32 +127,32 @@ Datadog's OpenMetrics integration scrapes Prometheus endpoints via the Agent.
 # conf.d/openmetrics.d/conf.yaml
 instances:
   - openmetrics_endpoint: http://<api-host>:8000/metrics
-    namespace: telemetria
+    namespace: strumline
     metrics:
-      - telemetria_.*
+      - strumline_.*
     type_overrides:
-      telemetria_http_request_duration_seconds: histogram
-      telemetria_processor_batch_size: histogram
-      telemetria_processor_batch_duration_seconds: histogram
+      strumline_http_request_duration_seconds: histogram
+      strumline_processor_batch_size: histogram
+      strumline_processor_batch_duration_seconds: histogram
 
   - openmetrics_endpoint: http://<ingest-host>:8001/metrics
-    namespace: telemetria
+    namespace: strumline
     metrics:
-      - telemetria_.*
+      - strumline_.*
 
   - openmetrics_endpoint: http://<processor-host>:8002/metrics
-    namespace: telemetria
+    namespace: strumline
     metrics:
-      - telemetria_.*
+      - strumline_.*
 ```
 
-Metrics appear in Datadog under `telemetria.*`. Build dashboards and monitors using the same metric names with `.` replacing `_` as needed by Datadog's naming convention.
+Metrics appear in Datadog under `strumline.*`. Build dashboards and monitors using the same metric names with `.` replacing `_` as needed by Datadog's naming convention.
 
 ---
 
 ## New Relic
 
-New Relic's Prometheus remote write integration or the OpenTelemetry Collector can scrape and forward Telemetria metrics.
+New Relic's Prometheus remote write integration or the OpenTelemetry Collector can scrape and forward Strumline metrics.
 
 ### Via Prometheus remote_write
 
@@ -160,7 +160,7 @@ Configure Prometheus to remote_write to New Relic:
 
 ```yaml
 remote_write:
-  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=telemetria
+  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=strumline
     bearer_token: <your-new-relic-license-key>
 ```
 
@@ -171,7 +171,7 @@ receivers:
   prometheus:
     config:
       scrape_configs:
-        - job_name: telemetria
+        - job_name: strumline
           static_configs:
             - targets: ["<api-host>:8000", "<ingest-host>:8001", "<processor-host>:8002"]
 
@@ -204,13 +204,13 @@ Use the CloudWatch Agent with the Prometheus scraper plugin, or the AWS Distro f
       "prometheus": {
         "prometheus_config_path": "/opt/aws/amazon-cloudwatch-agent/etc/prometheus.yaml",
         "emf_processor": {
-          "metric_namespace": "Telemetria",
+          "metric_namespace": "Strumline",
           "metric_declaration": [
             {
               "source_labels": ["job"],
-              "label_matcher": "^telemetria.*",
+              "label_matcher": "^strumline.*",
               "dimensions": [["process", "route"]],
-              "metric_selectors": ["telemetria_http_requests_total", "telemetria_ingest_events_dropped_total"]
+              "metric_selectors": ["strumline_http_requests_total", "strumline_ingest_events_dropped_total"]
             }
           ]
         }
@@ -220,7 +220,7 @@ Use the CloudWatch Agent with the Prometheus scraper plugin, or the AWS Distro f
 }
 ```
 
-With a `prometheus.yaml` pointing at the three Telemetria endpoints.
+With a `prometheus.yaml` pointing at the three Strumline endpoints.
 
 ---
 
@@ -233,13 +233,13 @@ receivers:
   prometheus:
     config:
       scrape_configs:
-        - job_name: telemetria-api
+        - job_name: strumline-api
           static_configs:
             - targets: ["<api-host>:8000"]
-        - job_name: telemetria-ingest
+        - job_name: strumline-ingest
           static_configs:
             - targets: ["<ingest-host>:8001"]
-        - job_name: telemetria-processor
+        - job_name: strumline-processor
           static_configs:
             - targets: ["<processor-host>:8002"]
 
@@ -267,13 +267,13 @@ Copy these into your Prometheus or compatible alerting system. Adjust thresholds
 
 ```yaml
 groups:
-  - name: telemetria
+  - name: strumline
     rules:
 
       # Ingest queue saturation — warn before events start dropping
       - alert: IngestQueueSaturated
         expr: |
-          telemetria_ingest_queue_depth / telemetria_ingest_queue_capacity > 0.8
+          strumline_ingest_queue_depth / strumline_ingest_queue_capacity > 0.8
         for: 2m
         labels:
           severity: warning
@@ -284,7 +284,7 @@ groups:
       # Ingest drops — events already being lost
       - alert: IngestEventsDroppingFast
         expr: |
-          rate(telemetria_ingest_events_dropped_total[5m]) > 10
+          rate(strumline_ingest_events_dropped_total[5m]) > 10
         for: 1m
         labels:
           severity: critical
@@ -295,7 +295,7 @@ groups:
       # Sink retries exhausted — processor discarding events
       - alert: ProcessorEventsDropping
         expr: |
-          rate(telemetria_processor_events_dropped_total[5m]) > 0
+          rate(strumline_processor_events_dropped_total[5m]) > 0
         for: 2m
         labels:
           severity: warning
@@ -306,7 +306,7 @@ groups:
       # IPC disconnect — ingest writer reconnecting repeatedly
       - alert: IPCReconnectingFrequently
         expr: |
-          rate(telemetria_ingest_ipc_reconnects_total[5m]) > 0.1
+          rate(strumline_ingest_ipc_reconnects_total[5m]) > 0.1
         for: 2m
         labels:
           severity: warning
@@ -317,9 +317,9 @@ groups:
       # HTTP error rate — ingest returning 4xx/5xx
       - alert: IngestHighErrorRate
         expr: |
-          rate(telemetria_http_requests_total{process="ingest", status_class=~"4xx|5xx"}[5m])
+          rate(strumline_http_requests_total{process="ingest", status_class=~"4xx|5xx"}[5m])
           /
-          rate(telemetria_http_requests_total{process="ingest"}[5m])
+          rate(strumline_http_requests_total{process="ingest"}[5m])
           > 0.05
         for: 2m
         labels:
@@ -331,7 +331,7 @@ groups:
       - alert: IngestHighLatency
         expr: |
           histogram_quantile(0.99,
-            rate(telemetria_http_request_duration_seconds_bucket{process="ingest"}[5m])
+            rate(strumline_http_request_duration_seconds_bucket{process="ingest"}[5m])
           ) > 0.1
         for: 5m
         labels:
@@ -346,12 +346,12 @@ groups:
 
 | What you want to know | Metric | Notes |
 |---|---|---|
-| Ingest throughput | `rate(telemetria_ingest_events_accepted_total[1m])` | events/s accepted |
-| Drop rate | `rate(telemetria_ingest_events_dropped_total[1m])` | split by `reason` |
-| Queue fill % | `telemetria_ingest_queue_depth / telemetria_ingest_queue_capacity` | alert at 0.8 |
+| Ingest throughput | `rate(strumline_ingest_events_accepted_total[1m])` | events/s accepted |
+| Drop rate | `rate(strumline_ingest_events_dropped_total[1m])` | split by `reason` |
+| Queue fill % | `strumline_ingest_queue_depth / strumline_ingest_queue_capacity` | alert at 0.8 |
 | auth token cache effectiveness | `rate(hits[5m]) / (rate(hits[5m]) + rate(misses[5m]))` | lower = more DB load |
-| IPC stability | `rate(telemetria_ingest_ipc_reconnects_total[5m])` | non-zero = socket issues |
-| Sink throughput | `rate(telemetria_processor_batches_total[1m])` | batches/s by `sink` |
-| Sink success rate | `telemetria_processor_sink_writes_total{outcome="success"}` vs `retryable` + `permanent` | |
-| Processor drops | `rate(telemetria_processor_events_dropped_total[1m])` | split by `reason` |
-| HTTP P99 latency | `histogram_quantile(0.99, rate(telemetria_http_request_duration_seconds_bucket[5m]))` | by `process` and `route` |
+| IPC stability | `rate(strumline_ingest_ipc_reconnects_total[5m])` | non-zero = socket issues |
+| Sink throughput | `rate(strumline_processor_batches_total[1m])` | batches/s by `sink` |
+| Sink success rate | `strumline_processor_sink_writes_total{outcome="success"}` vs `retryable` + `permanent` | |
+| Processor drops | `rate(strumline_processor_events_dropped_total[1m])` | split by `reason` |
+| HTTP P99 latency | `histogram_quantile(0.99, rate(strumline_http_request_duration_seconds_bucket[5m]))` | by `process` and `route` |

@@ -7,7 +7,7 @@ inclusion: always
 
 ## Module structure
 
-Every non-trivial module opens with a module-level docstring that covers: what it does, its entry points, and any invariants callers must know about. See `telemetria/ingest/server.py` or `telemetria/ipc/codec.py` for the expected style.
+Every non-trivial module opens with a module-level docstring that covers: what it does, its entry points, and any invariants callers must know about. See `strumline/ingest/server.py` or `strumline/ipc/codec.py` for the expected style.
 
 ## Settings
 
@@ -22,7 +22,7 @@ Use the `create_app()` factory pattern (not module-level `app = FastAPI()`). Att
 ## Error handling
 
 - Raise `HTTPException` from route handlers, never from business logic.
-- Business logic raises domain errors (subclasses of those in `telemetria.domain.errors`).
+- Business logic raises domain errors (subclasses of those in `strumline.domain.errors`).
 - Sink errors are `RetryableSinkError` or `PermanentSinkError` — never bare `Exception` in sink code.
 - Log at `WARNING` for recoverable drops/retries, `ERROR` for permanent failures and unexpected exceptions.
 
@@ -35,7 +35,7 @@ Use the `create_app()` factory pattern (not module-level `app = FastAPI()`). Att
 
 ## Logging
 
-Configure once per process via `telemetria.logging_config.configure_logging(common, process_name)`. Use structured JSON in production. Use `logging.getLogger(__name__)` at module level. Log IDs and slugs as key=value pairs in format strings, not f-strings inside the log call.
+Configure once per process via `strumline.logging_config.configure_logging(common, process_name)`. Use structured JSON in production. Use `logging.getLogger(__name__)` at module level. Log IDs and slugs as key=value pairs in format strings, not f-strings inside the log call.
 
 ```python
 log.info("Event enqueued id=%s app=%s", event.id, event.app_slug)  # good
@@ -44,7 +44,7 @@ log.info(f"Event enqueued id={event.id}")  # bad
 
 ## Tests
 
-Test files mirror the module they test: `tests/test_ingest.py` tests `telemetria/ingest/`. Use `pytest.mark.unit` for tests with no DB dependency; use `pytest.mark.integration` for tests that need PostgreSQL.
+Test files mirror the module they test: `tests/test_ingest.py` tests `strumline/ingest/`. Use `pytest.mark.unit` for tests with no DB dependency; use `pytest.mark.integration` for tests that need PostgreSQL.
 
 Use `httpx2` `AsyncClient` with `transport=ASGITransport(app=create_app(...))` for route tests — never spin up a real server in tests. Inject test doubles via `app.state`.
 
@@ -60,4 +60,4 @@ Fixtures live in `tests/conftest.py`. Keep fixtures minimal; use `pytest.fixture
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. Name them `NNNN_short_description.py`. Always include both `upgrade()` and `downgrade()`. All new timestamp columns use `TIMESTAMPTZ`. All new string primary keys that look like UUIDs use `UUID` type. Run `make migrate` to apply; never run `alembic` directly in production — always through `telemetria migrate`.
+Alembic migrations live in `alembic/versions/`. Name them `NNNN_short_description.py`. Always include both `upgrade()` and `downgrade()`. All new timestamp columns use `TIMESTAMPTZ`. All new string primary keys that look like UUIDs use `UUID` type. Run `make migrate` to apply; never run `alembic` directly in production — always through `strumline migrate`.

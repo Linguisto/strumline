@@ -14,7 +14,7 @@ All settings are read at process startup. Changes require a process restart.
 | `APP_TIMEZONE`    | `` (UTC) | no      | Optional IANA display timezone (e.g. `Europe/Berlin`). Presentation only — all storage and transmission is UTC. |
 | `APP_KEY`         | ``       | **yes** | HMAC-SHA256 secret for auth token hashing. Generated automatically by `make up` if empty. Required in production. |
 
-## API process (`telemetria-api`)
+## API process (`strumline-api`)
 
 | Variable            | Default   | Secret  | Description                                                  |
 |--------------------|-----------|---------|--------------------------------------------------------------|
@@ -28,13 +28,13 @@ When `ADMIN_API_ENABLED=true`, a non-empty `ADMIN_API_KEY` is required. Generate
 python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-## Ingest process (`telemetria-ingest`)
+## Ingest process (`strumline-ingest`)
 
 | Variable            | Default                        | Secret | Description                                                         |
 |---------------------|--------------------------------|--------|---------------------------------------------------------------------|
 | `INGEST_HOST`       | `0.0.0.0`                      | no     | Bind address                                                        |
 | `INGEST_PORT`       | `8001`                         | no     | Listen port (1–65535)                                               |
-| `IPC_SOCKET_PATH`   | `/var/run/telemetria/ipc.sock` | no     | Unix-domain socket path shared with the processor                   |
+| `IPC_SOCKET_PATH`   | `/var/run/strumline/ipc.sock` | no     | Unix-domain socket path shared with the processor                   |
 | `API_DOCS_ENABLED`  | `false`                        | no     | Serve Scalar API docs at `/` (ingest contract — `POST /v1/logs`)  |
 | `MAX_PAYLOAD_BYTES` | `1048576` (1 MiB)              | no     | Raw request limit; OTLP also limits decompressed and normalized bytes |
 | `MAX_BATCH_EVENTS`  | `300`                          | no     | Maximum events per batch request                                    |
@@ -45,14 +45,15 @@ OTLP logs use the same ingest port and token resolver. `/v1/logs` returns retrya
 See the
 [OTLP contract](api/otlp-logs.md) for batch sizing, encodings, and exporter setup.
 
-## Processor process (`telemetria-processor`)
+## Processor process (`strumline-processor`)
 
 | Variable          | Default                        | Secret | Description                                |
 |-------------------|--------------------------------|---------|--------------------------------------------|
 | `PROCESSOR_HOST`  | `0.0.0.0`                      | no      | Bind address                               |
 | `PROCESSOR_PORT`  | `8002`                         | no      | Listen port (1–65535)                      |
-| `IPC_SOCKET_PATH` | `/var/run/telemetria/ipc.sock` | no      | Unix-domain socket path shared with ingest |
-| `SINK_PROVIDER`   | `loki`                         | no      | `loki` \| `null` — selects the event sink  |
+| `IPC_SOCKET_PATH` | `/var/run/strumline/ipc.sock` | no      | Unix-domain socket path shared with ingest |
+| `PROCESSOR_QUEUE_SIZE` | `10000`                  | no      | Bounded queue between the UDS reader and batch processor (must be ≥ 1) |
+| `SINK_PROVIDER`   | `null`                         | no      | `loki` \| `null` — selects the event sink. The development `.env.example` selects `loki`. |
 
 ## Loki sink (`SINK_PROVIDER=loki`)
 
@@ -104,15 +105,15 @@ Two roles connect to the same PostgreSQL database. Connection URLs are assembled
 |----------------------|---------------------|---------|----------------------|------------------------------------------------------------------|
 | `DB_HOST`            | `postgres`          | no      | api, cli, migrations | PostgreSQL host                                                  |
 | `DB_PORT`            | `5432`              | no      | api, cli, migrations | PostgreSQL port                                                  |
-| `DB_NAME`            | `telemetria`        | no      | api, cli, migrations | Database name                                                    |
-| `DB_USER`            | `telemetria`        | no      | api, cli, migrations | App role (read-write)                                            |
-| `DB_PASSWORD`        | `telemetria`        | **yes** | api, cli, migrations | App role password — change before deploying                      |
-| `INGEST_DB_USER`     | `telemetria_ingest` | no      | ingest               | Read-only role for auth token resolver                                  |
+| `DB_NAME`            | `strumline`        | no      | api, cli, migrations | Database name                                                    |
+| `DB_USER`            | `strumline`        | no      | api, cli, migrations | App role (read-write)                                            |
+| `DB_PASSWORD`        | `strumline`        | **yes** | api, cli, migrations | App role password — change before deploying                      |
+| `INGEST_DB_USER`     | `strumline_ingest` | no      | ingest               | Read-only role for auth token resolver                                  |
 | `INGEST_DB_PASSWORD` | ``                  | **yes** | ingest               | Read-only role password — set after running the bootstrap script |
 
 The ingest process falls back to the app role (`DB_*`) if `INGEST_DB_PASSWORD` is empty. Run the bootstrap script to
 provision the read-only role:
 
 ```bash
-docker compose run --rm telemetria-cli python -m telemetria.db.bootstrap
+docker compose run --rm strumline-cli python -m strumline.db.bootstrap
 ```

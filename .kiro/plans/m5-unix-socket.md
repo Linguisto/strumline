@@ -13,7 +13,7 @@ Use one Uvicorn server/application lifecycle with pre-bound TCP and Unix sockets
 
 ```text
 INGEST_UNIX_SOCKET_ENABLED=false
-INGEST_UNIX_SOCKET_PATH=/var/run/telemetria/ingest.sock
+INGEST_UNIX_SOCKET_PATH=/var/run/strumline/ingest.sock
 INGEST_UNIX_SOCKET_MODE=0660
 ```
 

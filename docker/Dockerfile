@@ -16,7 +16,7 @@ COPY pyproject.toml uv.lock README.md ./
 # Runtime deps only — cache-friendly layer before source copy
 RUN uv sync --locked --no-dev --no-install-project
 
-COPY telemetria/ ./telemetria/
+COPY strumline/ ./strumline/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
 RUN uv sync --locked --no-dev
@@ -29,8 +29,8 @@ FROM python:3.14-slim AS runtime
 
 ARG UID=10001
 ARG GID=10001
-RUN groupadd --gid "${GID}" telemetria \
- && useradd --uid "${UID}" --gid "${GID}" --no-create-home --shell /sbin/nologin telemetria
+RUN groupadd --gid "${GID}" strumline \
+ && useradd --uid "${UID}" --gid "${GID}" --no-create-home --shell /sbin/nologin strumline
 
 COPY --from=builder /app /app
 
@@ -38,11 +38,11 @@ ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-RUN mkdir -p /var/run/telemetria \
- && chown "${UID}:${GID}" /var/run/telemetria \
+RUN mkdir -p /var/run/strumline \
+ && chown "${UID}:${GID}" /var/run/strumline \
  && chown -R "${UID}:${GID}" /app
 
-USER telemetria
+USER strumline
 WORKDIR /app
 
 
@@ -54,7 +54,7 @@ FROM runtime AS dev
 USER root
 
 COPY --from=builder /app/pyproject.toml /app/uv.lock /app/README.md /app/
-COPY telemetria/ /app/telemetria/
+COPY strumline/ /app/strumline/
 COPY alembic/ /app/alembic/
 COPY alembic.ini /app/
 COPY tests/ /app/tests/
@@ -64,4 +64,4 @@ RUN pip install --no-cache-dir uv \
  && pip uninstall -y uv \
  && chown -R "${UID}:${GID}" /app/.venv /app/tests
 
-USER telemetria
+USER strumline

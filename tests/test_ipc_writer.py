@@ -19,10 +19,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from telemetria.domain.events import Event
-from telemetria.ingest.writer import IPCWriter
-from telemetria.ipc.codec import decode_envelope_body
-from telemetria.metrics import INGEST_EVENTS_DROPPED_TOTAL
+from strumline.domain.events import Event
+from strumline.ingest.writer import IPCWriter
+from strumline.ipc.codec import decode_envelope_body
+from strumline.metrics import INGEST_EVENTS_DROPPED_TOTAL
 
 _NOW = datetime(2026, 9, 18, 17, 0, 0, tzinfo=UTC)
 

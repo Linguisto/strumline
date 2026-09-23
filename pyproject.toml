@@ -3,7 +3,7 @@ requires = ["hatchling>=1.32.3"]
 build-backend = "hatchling.build"
 
 [project]
-name = "telemetria"
+name = "strumline"
 version = "0.1.0"
 description = "Non-blocking, lightning-fast structured telemetry collector"
 readme = "README.md"
@@ -32,10 +32,10 @@ dependencies = [
 ]
 
 [project.scripts]
-telemetria = "telemetria.cli.main:app"
-telemetria-api = "telemetria.api.server:main"
-telemetria-ingest = "telemetria.ingest.server:main"
-telemetria-processor = "telemetria.processor.server:main"
+strumline = "strumline.cli.main:app"
+strumline-api = "strumline.api.server:main"
+strumline-ingest = "strumline.ingest.server:main"
+strumline-processor = "strumline.processor.server:main"
 
 [dependency-groups]
 dev = [
@@ -48,7 +48,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["telemetria"]
+packages = ["strumline"]
 
 [tool.ruff]
 target-version = "py314"
@@ -76,36 +76,36 @@ markers = [
 # make test             → pytest (all)
 
 [tool.importlinter]
-root_packages = ["telemetria"]
+root_packages = ["strumline"]
 
 [[tool.importlinter.contracts]]
 name = "ipc does not import process packages"
 type = "forbidden"
-source_modules = ["telemetria.ipc"]
+source_modules = ["strumline.ipc"]
 forbidden_modules = [
-    "telemetria.api",
-    "telemetria.cli",
-    "telemetria.ingest",
-    "telemetria.processor",
+    "strumline.api",
+    "strumline.cli",
+    "strumline.ingest",
+    "strumline.processor",
 ]
 
 [[tool.importlinter.contracts]]
 name = "domain is pure — no I/O dependencies"
 type = "forbidden"
-source_modules = ["telemetria.domain"]
+source_modules = ["strumline.domain"]
 forbidden_modules = [
-    "telemetria.api",
-    "telemetria.cli",
-    "telemetria.ingest",
-    "telemetria.processor",
-    "telemetria.ipc",
-    "telemetria.metrics",
+    "strumline.api",
+    "strumline.cli",
+    "strumline.ingest",
+    "strumline.processor",
+    "strumline.ipc",
+    "strumline.metrics",
 ]
 
 [[tool.importlinter.contracts]]
 name = "processor does not import sink implementations directly"
 type = "forbidden"
-source_modules = ["telemetria.processor"]
+source_modules = ["strumline.processor"]
 forbidden_modules = [
-    "telemetria.sinks.loki",
+    "strumline.sinks.loki",
 ]

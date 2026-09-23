@@ -1,4 +1,4 @@
-# Contributing to Telemetria
+# Contributing to Strumline
 
 Thanks for contributing. This guide covers the workflow, quality gates, and
 conventions specific to this repository. It is the human companion to
@@ -29,7 +29,7 @@ After `make up` the services are:
 - Ingest → http://localhost:8001/health
 - Processor → http://localhost:8002/health
 
-Code under `telemetria/` hot-reloads inside the containers.
+Code under `strumline/` hot-reloads inside the containers.
 
 ## Branch and PR workflow
 
@@ -61,9 +61,9 @@ make test DC_EXEC="uv run"
 
 The five gates, each of which must be clean:
 
-1. `ruff check telemetria/ tests/` — zero errors
-2. `ruff format --check telemetria/ tests/` — zero diff
-3. `mypy telemetria/` — zero errors (strict mode)
+1. `ruff check strumline/ tests/` — zero errors
+2. `ruff format --check strumline/ tests/` — zero diff
+3. `mypy strumline/` — zero errors (strict mode)
 4. `lint-imports` — all import boundary contracts pass
 5. `pytest` — all tests pass
 
@@ -76,9 +76,9 @@ These are enforced in CI and must never be relaxed.
 ### Import boundaries (`lint-imports`)
 
 ```
-domain/     → nothing in telemetria (pure — no I/O, no frameworks)
+domain/     → nothing in strumline (pure — no I/O, no frameworks)
 ipc/        → domain/ only
-ingest/     → domain/, ipc/, metrics/, db/ (read-only DSN resolver only)
+ingest/     → domain/, ipc/, metrics/, db/ (read-only auth token resolver only)
 processor/  → domain/, ipc/, metrics/, sinks/ (contract + factory, not loki directly)
 control/    → db/, domain/
 cli/        → control/, domain/
@@ -124,10 +124,10 @@ Highlights:
 - FastAPI apps use the `create_app()` factory and `lifespan` — no module-level
   `app = FastAPI()` (except the uvicorn entry point) and no `@app.on_event`.
 - Line length 100. Docstrings on public modules, classes, and functions.
-- **Two-model split:** ORM models (`db/models.py`) never leave `telemetria.db`;
+- **Two-model split:** ORM models (`db/models.py`) never leave `strumline.db`;
   domain entities (`domain/entities.py`) are the canonical type everywhere else.
   Repositories are the only place that converts between them.
-- **Domain errors** subclass `TelemetriaError` and carry `exit_code` (CLI) and
+- **Domain errors** subclass `StrumlineError` and carry `exit_code` (CLI) and
   `http_status` (REST). Business logic raises domain errors; route handlers
   translate them to `HTTPException`. Never raise `HTTPException` from business
   logic.
@@ -141,7 +141,7 @@ logic, integration for repository/service).
 ## Tests
 
 - Test files mirror the module they test (`tests/test_ingest.py` →
-  `telemetria/ingest/`).
+  `strumline/ingest/`).
 - Mark every test `@pytest.mark.unit` (fast, no DB) or `@pytest.mark.integration`
   (needs PostgreSQL).
 - Use `httpx2` `AsyncClient` with `ASGITransport(app=create_app(...))` for route
