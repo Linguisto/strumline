@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 from starlette.requests import Request
 from starlette.responses import Response
-from starlette.routing import Match, Route
+from starlette.routing import Route
 
 from telemetria.metrics import HTTP_REQUEST_DURATION_SECONDS, HTTP_REQUESTS_TOTAL
 
@@ -35,18 +35,23 @@ _METRICS_PATH = "/metrics"
 def _route_template(request: Request) -> str:
     """Return the matched route template, or '<unknown>' if unmatched.
 
-    Uses the path template (e.g. ``/v1/ingest``) rather than the raw path so
+    Uses the path template (e.g. ``/v1/logs``) rather than the raw path so
     parameterised routes don't inflate label cardinality.
+
+    Must be called after routing has executed (i.e. after ``call_next``) so
+    that Starlette has populated ``request.scope["route"]``.  Iterating
+    ``request.app.routes`` before routing does not find routes added via
+    ``include_router`` because those are nested under an ``_IncludedRouter``
+    wrapper that does not implement ``Route.matches``.
     """
-    for route in request.app.routes:
-        if isinstance(route, Route) and route.path != _METRICS_PATH:
-            match, _ = route.matches(request.scope)
-            if match == Match.FULL:
-                return route.path
+    route = request.scope.get("route")
+    if isinstance(route, Route) and route.path != _METRICS_PATH:
+        return route.path
     return "<unknown>"
 
 
 def _status_class(status_code: int) -> str:
+    """Return the HTTP status class string, e.g. ``200`` → ``"2xx"``."""
     return f"{status_code // 100}xx"
 
 
@@ -91,7 +96,6 @@ def add_metrics(app: FastAPI, *, process: str, enabled: bool) -> None:
         if request.url.path == _METRICS_PATH:
             return await call_next(request)
 
-        route = _route_template(request)
         method = request.method
         start = time.perf_counter()
 
@@ -99,6 +103,7 @@ def add_metrics(app: FastAPI, *, process: str, enabled: bool) -> None:
 
         duration = time.perf_counter() - start
         status = _status_class(response.status_code)
+        route = _route_template(request)
 
         HTTP_REQUESTS_TOTAL.labels(
             process=process, method=method, route=route, status_class=status

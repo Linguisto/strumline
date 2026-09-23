@@ -22,36 +22,35 @@ class Event:
     payload: dict[str, Any]
 ```
 
-Both timestamps are canonical UTC values. A client timestamp is accepted only with `Z` or an explicit offset, then normalized to UTC. Missing, naive, malformed, or out-of-range values use `received_at`. Serialization always emits `Z`. Do not automatically retain the original offset-bearing timestamp string in metadata; no localized timestamp field crosses IPC.
+Both canonical datetimes are UTC and serialize with `Z`. OTLP epoch nanoseconds
+are preserved exactly in the typed payload; the datetime projection uses event
+time, then observed time, then server receipt time. Invalid wire timestamps
+are payload errors; absent/zero values use the documented fallback.
 
 Including project/app IDs and slugs in the event keeps the processor independent from PostgreSQL and gives every sink the routing metadata it needs.
 
 ## HTTP ingestion
 
-```text
-POST /v1/ingest
-POST /v1/ingest/batch
-X-Telemetria-DSN: <key>
-```
+`POST /v1/logs` is the only ingestion endpoint, for both single records and
+batches. Authenticate with `x-telemetria-token`. The
+[OTLP contract](../../docs/api/otlp-logs.md) defines Protobuf/JSON, gzip, typed
+field preservation, body/record/normalized-size limits, and response encoding.
 
-- Enforce `MAX_PAYLOAD_BYTES` on raw request bytes before JSON parsing/decompression expansion can allocate an unbounded object.
-- Enforce content type, JSON shape, allowed scalar/container types, nesting limits, and `MAX_BATCH_EVENTS`.
-- Resolve the DSN through the read-only database role and TTL cache.
-- Validate and normalize an entire batch before enqueueing any member. Validation failures enqueue zero events.
-- Generate one server UTC `received_at` per accepted event and a UUID event ID.
-- Do not log DSN keys or raw telemetry at normal log levels.
-
-Response semantics:
-
-- `202`: authentication and validation succeeded; enqueue was attempted for each normalized event.
-- `400`/`413`/`415`: invalid request, batch limit, byte limit, or media type.
-- `401`: unknown, inactive, or revoked DSN.
-
-`202` is best-effort acknowledgement, not a durability promise. Responses may include accepted/dropped counts for batches without exposing internal details.
+- Decode and validate before admission. Malformed payloads enqueue nothing.
+- Resolve tokens through the read-only database role and TTL cache.
+- Preserve resource/scope/record data and generate server receipt time and event IDs.
+- Return `200` for full acceptance or permanent normalized-size partial rejection.
+- Return `400` for malformed data or invalid batch count/capacity, `401` for invalid
+  tokens, `413` for body limits, and `415` for unsupported encoding/media type.
+- Return retryable `503` for resolver outages or insufficient queue capacity.
+- Never log tokens or raw telemetry at normal log levels.
 
 ## Bounded queue and IPC writer
 
-The request handler uses `asyncio.Queue.put_nowait`; it never awaits capacity. `QueueFull` increments the ingest-specific drop counter and the handler continues according to the documented batch response semantics.
+The handler checks capacity and uses `put_nowait` without an intervening await.
+Insufficient space rejects the whole batch with `503`; nothing is admitted and
+no permanent-drop counter is incremented. Normalized size rejections use OTLP
+partial-success counts and the `otlp_normalized_size` drop reason.
 
 A dedicated writer task owns the UDS connection, drains the queue, calls shared `encode_frame`, and uses `write()` plus `drain()` while handling partial transport failure and reconnecting with bounded exponential backoff. Stream writes are not described as atomic. Events already removed from the queue may be lost on failure, consistent with best-effort delivery.
 
@@ -76,11 +75,11 @@ M2 defines the ingest counters/gauges it emits; M4 integrates dashboards and sam
 
 ## Acceptance criteria
 
-- [ ] Valid single and batch requests return `202` and create IPC frames containing IDs, slugs, and UTC timestamps.
-- [ ] Raw byte and batch limits are applied before expensive parsing and before any enqueue.
+- [ ] Valid single and batch requests return `200` and create IPC frames containing IDs, slugs, and UTC timestamps.
+- [ ] Raw/decompressed bytes are bounded before decoding; batch and normalized sizes are checked before admission.
 - [ ] Invalid batch members cause zero events from that batch to enqueue.
-- [ ] Naive/invalid timestamps fall back to server UTC `received_at`; offset timestamps normalize to `Z`.
-- [ ] Queue-full handling uses `put_nowait`, never blocks the request, and increments the ingest drop counter.
+- [ ] OTLP timestamp fallback and exact nanosecond preservation are tested.
+- [ ] Queue-full handling rejects atomically with `503` and never waits for capacity.
 - [ ] Revoked DSNs become invalid within the documented cache TTL.
 - [ ] Frame-size, version, malformed-body, and truncated-read tests cover the shared protocol.
 - [ ] Socket failure keeps HTTP serving and records reconnect/drop behavior consistent with best-effort semantics.

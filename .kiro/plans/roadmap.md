@@ -14,7 +14,13 @@ telemetria-processor  :8002  IPC reader, batching, sink dispatch, health/metrics
 
 Ingest and processor share a Unix-domain-socket directory. PostgreSQL stores control-plane metadata only. Raw telemetry is never stored in PostgreSQL.
 
-`202 Accepted` means authentication and validation succeeded and enqueue was attempted. It does not guarantee delivery. Queue pressure, process failure, IPC failure, and exhausted sink retries may lose events; retries may create duplicate event IDs.
+
+OTLP/HTTP log ingestion is implemented at `/v1/logs`, with Protobuf/JSON, gzip,
+app-token routing, and typed resource/scope/record preservation. It uses OTLP
+success, partial rejection, and retryable failure responses; success acknowledges
+in-memory admission, not durable delivery. See the
+[current OTLP contract](../../docs/api/otlp-logs.md). M7 covers this implementation;
+[M8](m8-otlp-integration.md) extends OTLP integration after v1.
 
 ## Non-negotiable invariants
 
@@ -23,7 +29,7 @@ Ingest and processor share a Unix-domain-socket directory. PostgreSQL stores con
 - Every persisted, transmitted, logged, and sink-facing canonical timestamp is timezone-aware UTC.
 - PostgreSQL timestamp columns use `TIMESTAMPTZ`; database sessions run in UTC.
 - JSON APIs serialize canonical timestamps with a trailing `Z`.
-- Client timestamps must include `Z` or an explicit offset and are normalized to UTC. Missing, naive, or invalid client timestamps fall back to the server's UTC `received_at`.
+- OTLP timestamps use UTC epoch nanoseconds. Preserve their exact values in the typed payload; the canonical datetime projection uses event time, then observed time, then server receipt time. `received_at` stays server-generated.
 - Loki uses server `received_at` as its entry timestamp. A valid client timestamp remains event data/metadata and never controls storage ordering.
 - `App.timezone` is an optional IANA timezone used only for presentation. Display precedence is app timezone, then `APP_TIMEZONE`, then UTC. CLI and REST may override the app value. Localized display fields are explicit additions and never replace canonical UTC fields.
 
@@ -88,6 +94,7 @@ telemetria/
 M0 -> M1 (basic CLI) -> M2 -> M2b -> M3 -> M4 -> M6 -> M7 -> v1.0
       M1 -> M6b (admin API) -------------------------> M7
                            M2b -> M5 (post-v1 local ingest socket)
+v1.0 + existing OTLP/HTTP logs -> M8 (post-v1 deeper OTLP integration)
 ```
 
 M7 joins the completed data pipeline, observability, CLI/TUI, and REST tracks. Numbering identifies feature groups rather than a mandatory execution order. See [agent execution guide](agent-execution.md) for bounded work packets and checkpoints, and [planning review](planning-review.md) for unresolved contracts and proposed enrichments.
@@ -104,13 +111,21 @@ M7 joins the completed data pipeline, observability, CLI/TUI, and REST tracks. N
 | [M6b](m6b-admin-api.md) | Runtime-gated admin REST API | M1 | yes |
 | [M7](m7-hardening.md) | Protocol docs, performance evidence, security/docs | M3, M4, M6, M6b | yes |
 | [M5](m5-unix-socket.md) | Optional client-to-ingest Unix socket | M2b | no |
+| [M8](m8-otlp-integration.md) | OTLP/gRPC, deeper log integration, traces and metrics | M7/v1, existing OTLP/HTTP logs | no |
+
+M8 ships in stages: log model/correlation, gRPC logs, traces, then metrics.
+Each signal requires an end-to-end path to a compatible sink before it is
+advertised as supported. M8 and M5 are independent post-v1 tracks; profiles
+are a later candidate rather than an M8 completion requirement.
 
 ## Deferred
 
 - Per-app sink routing, multi-sink fan-out, and persistent sink configuration
 - Sink providers beyond Loki and NullSink
 - Event replay and durable/dead-letter storage
-- Local Unix-socket ingestion (M5), gRPC, and WebSocket transports
+- Local Unix-socket ingestion (M5)
+- OTLP/gRPC, deeper log integration, traces, and metrics (M8)
+- OTLP profiles and WebSocket transport (unscheduled)
 - Web admin application
 - Go/Rust ingest rewrite until profiling justifies it
 - msgpack until JSON framing is proven to be a bottleneck
@@ -124,4 +139,5 @@ M7 joins the completed data pipeline, observability, CLI/TUI, and REST tracks. N
 5. Ingest sustains at least 1,000 events/sec on one documented single-core test environment; HTTP receipt-to-enqueue P99 is below 5 ms.
 6. Overload and sink failure preserve service health while distinct drop/error counters explain losses.
 7. UTC invariants, import boundaries, and the IPC conformance suite pass in CI.
-8. M0, M1, M2, M2b, M3, M4, M6, M6b, and M7 are complete. M5 is not required for v1.
+8. M0, M1, M2, M2b, M3, M4, M6, M6b, and M7 are complete. M5 and M8 are not required for v1.
+9. Existing OTLP/HTTP logs pass SDK/Collector interoperability and overload/field-preservation checks as part of M7.

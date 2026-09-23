@@ -23,12 +23,10 @@ for the caller to log or count the failure without re-parsing.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import struct
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    import asyncio
+from typing import Any
 
 from telemetria.domain.events import Event
 
@@ -138,11 +136,10 @@ async def read_frame(
     if length > max_bytes:
         raise FrameTooLargeError(length, max_bytes)
 
-    body = await reader.read(length)
-    if len(body) < length:
-        raise TruncatedFrameError(length, len(body))
-
-    return body
+    try:
+        return await reader.readexactly(length)
+    except asyncio.IncompleteReadError as exc:
+        raise TruncatedFrameError(length, len(exc.partial)) from exc
 
 
 def decode_envelope_body(body: bytes) -> Event:

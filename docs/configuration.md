@@ -35,10 +35,15 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 | `INGEST_HOST`       | `0.0.0.0`                      | no     | Bind address                                                        |
 | `INGEST_PORT`       | `8001`                         | no     | Listen port (1–65535)                                               |
 | `IPC_SOCKET_PATH`   | `/var/run/telemetria/ipc.sock` | no     | Unix-domain socket path shared with the processor                   |
-| `API_DOCS_ENABLED`  | `false`                        | no     | Serve Scalar API docs at `/` (ingest contract — `POST /v1/ingest`)  |
-| `MAX_PAYLOAD_BYTES` | `1048576` (1 MiB)              | no     | Raw request body limit — enforced before JSON parsing               |
+| `API_DOCS_ENABLED`  | `false`                        | no     | Serve Scalar API docs at `/` (ingest contract — `POST /v1/logs`)  |
+| `MAX_PAYLOAD_BYTES` | `1048576` (1 MiB)              | no     | Raw request limit; OTLP also limits decompressed and normalized bytes |
 | `MAX_BATCH_EVENTS`  | `300`                          | no     | Maximum events per batch request                                    |
-| `QUEUE_SIZE`        | `10000`                        | no     | In-process event queue capacity — `QueueFull` drops events silently |
+| `QUEUE_SIZE`        | `10000`                        | no     | In-process event queue capacity (must be ≥ 1); insufficient space returns retryable `503` without admitting any records |
+
+OTLP logs use the same ingest port and token resolver. `/v1/logs` returns retryable
+`503` without admitting records when a batch cannot fit the remaining queue space.
+See the
+[OTLP contract](api/otlp-logs.md) for batch sizing, encodings, and exporter setup.
 
 ## Processor process (`telemetria-processor`)
 
