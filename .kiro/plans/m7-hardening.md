@@ -48,12 +48,12 @@ Release artifacts include CHANGELOG, CONTRIBUTING guide, migration/rollback note
 
 ## Acceptance criteria
 
-- [ ] IPC and ingest docs are sufficient to implement a compatible client/ingest process without reading Python source.
-- [ ] Protocol conformance fixtures pass against the Python implementation.
-- [ ] Sink extension documentation produces a test provider without processor changes.
-- [ ] Benchmark results are repeatable from the documented methodology and meet v1 targets.
-- [ ] Each loss path has a distinct bounded-cardinality counter and resilience test.
-- [ ] Security checks cover admin API, DSNs, database grants, payloads, metrics, UDS permissions, dependencies, and redaction.
-- [ ] BYO observability and optional Compose profiles are documented and tested.
-- [ ] UTC storage and API serialization invariants have database, IPC, CLI, REST, and Loki tests.
-- [ ] M0, M1, M2, M2b, M3, M4, M6, M6b, and M7 are complete; M5 remains post-v1.
+- [x] IPC and ingest docs are sufficient to implement a compatible client/ingest process without reading Python source.
+- [x] Protocol conformance fixtures pass against the Python implementation.
+- [x] Sink extension documentation produces a test provider without processor changes.
+- [x] Benchmark results are repeatable from the documented methodology and meet v1 targets.
+- [x] Each loss path has a distinct bounded-cardinality counter and resilience test.
+- [x] Security checks cover admin API, DSNs, database grants, payloads, metrics, UDS permissions, dependencies, and redaction.
+- [x] BYO observability and optional Compose profiles are documented and tested.
+- [x] UTC storage and API serialization invariants have database, IPC, CLI, REST, and Loki tests.
+- [x] M0, M1, M2, M2b, M3, M4, M6, M6b, and M7 are complete; M5 remains post-v1.

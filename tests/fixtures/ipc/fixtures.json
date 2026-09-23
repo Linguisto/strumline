@@ -1,0 +1,68 @@
+[
+  {
+    "name": "minimal_valid_event",
+    "description": "Minimal valid frame with all required event fields and empty payload. Timestamps use trailing Z (UTC invariant).",
+    "frame_hex": "000001657b2276223a312c226576656e74223a7b226964223a2261316232633364342d653566362d373839302d616263642d656631323334353637383930222c2270726f6a6563745f6964223a2230303030303030302d303030302d303030302d303030302d303030303030303030303031222c2270726f6a6563745f736c7567223a226d792d70726f6a656374222c226170705f6964223a2230303030303030302d303030302d303030302d303030302d303030303030303030303032222c226170705f736c7567223a226d792d617070222c2272656365697665645f6174223a22323032362d30392d31385431373a30303a30302e3030303030305a222c2274696d657374616d70223a22323032362d30392d31385431363a35393a35392e3030303030305a222c226c6576656c223a226572726f72222c226d657373616765223a22536f6d657468696e672077656e742077726f6e67222c227061796c6f6164223a7b7d7d7d",
+    "valid": true,
+    "event": {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "project_id": "00000000-0000-0000-0000-000000000001",
+      "project_slug": "my-project",
+      "app_id": "00000000-0000-0000-0000-000000000002",
+      "app_slug": "my-app",
+      "received_at": "2026-09-18T17:00:00.000000Z",
+      "timestamp": "2026-09-18T16:59:59.000000Z",
+      "level": "error",
+      "message": "Something went wrong",
+      "payload": {}
+    }
+  },
+  {
+    "name": "otlp_payload_event",
+    "description": "Event with OTLP payload carrying resource, scope, and logRecord. Nanosecond timestamp is a decimal string.",
+    "frame_hex": "000002707b2276223a312c226576656e74223a7b226964223a2262326333643465352d663661372d383930312d626364652d663132333435363738393031222c2270726f6a6563745f6964223a2230303030303030302d303030302d303030302d303030302d303030303030303030303031222c2270726f6a6563745f736c7567223a2261636d65222c226170705f6964223a2230303030303030302d303030302d303030302d303030302d303030303030303030303032222c226170705f736c7567223a22636865636b6f7574222c2272656365697665645f6174223a22323032362d30392d31385431373a30303a30302e3030303030305a222c2274696d657374616d70223a22323032362d30392d31385431373a30303a30302e3132333435365a222c226c6576656c223a22696e666f222c226d657373616765223a224f7264657220706c61636564222c227061796c6f6164223a7b226f746c70223a7b227265736f75726365223a7b2261747472696275746573223a5b7b226b6579223a22736572766963652e6e616d65222c2276616c7565223a7b22737472696e6756616c7565223a22636865636b6f7574227d7d5d7d2c227265736f75726365536368656d6155726c223a22222c2273636f7065223a7b226e616d65223a22636865636b6f75742e6f7264657273227d2c2273636f7065536368656d6155726c223a22222c226c6f675265636f7264223a7b2274696d65556e69784e616e6f223a2231373236363738383030313233343536303030222c2273657665726974794e756d626572223a392c22626f6479223a7b22737472696e6756616c7565223a224f7264657220706c61636564227d7d7d7d7d7d",
+    "valid": true,
+    "event": {
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "project_slug": "acme",
+      "app_slug": "checkout",
+      "level": "info",
+      "message": "Order placed"
+    }
+  },
+  {
+    "name": "zero_body_length",
+    "description": "Prefix declares zero body length. Must be rejected with EmptyFrameError before reading further.",
+    "frame_hex": "00000000",
+    "valid": false,
+    "error": "EmptyFrameError"
+  },
+  {
+    "name": "oversized_body_length",
+    "description": "Prefix declares IPC_MAX_FRAME_BYTES+1 (1 MiB + 1 byte). Must be rejected with FrameTooLargeError before allocating.",
+    "frame_hex": "00100001",
+    "valid": false,
+    "error": "FrameTooLargeError"
+  },
+  {
+    "name": "truncated_body",
+    "description": "Prefix declares 100 bytes but stream ends after 0. Must be rejected with TruncatedFrameError.",
+    "frame_hex": "00000064",
+    "valid": false,
+    "error": "TruncatedFrameError"
+  },
+  {
+    "name": "unknown_version",
+    "description": "Valid JSON envelope but v=99 (unknown version). Must be counted and discarded without closing the connection.",
+    "frame_hex": "000000137b2276223a39392c226576656e74223a7b7d7d",
+    "valid": false,
+    "error": "UnknownVersionError"
+  },
+  {
+    "name": "malformed_json",
+    "description": "Body is not valid JSON. Must be counted and discarded without closing the connection.",
+    "frame_hex": "000000097b626164206a736f6e",
+    "valid": false,
+    "error": "MalformedEnvelopeError"
+  }
+]

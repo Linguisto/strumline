@@ -15,12 +15,14 @@ import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from telemetria.domain.events import Event
 from telemetria.ingest.writer import IPCWriter
 from telemetria.ipc.codec import decode_envelope_body
+from telemetria.metrics import INGEST_EVENTS_DROPPED_TOTAL
 
 _NOW = datetime(2026, 9, 18, 17, 0, 0, tzinfo=UTC)
 
@@ -151,6 +153,55 @@ async def test_writer_reconnects_after_server_restart():
 
         assert len(received) == 1
         assert received[0].message == "after-reconnect"
+
+
+@pytest.mark.asyncio
+async def test_ipc_write_failure_increments_drop_counter():
+    """A mid-write failure that cannot be re-queued (queue full) drops the event
+    on the IPC/write-failure path and increments the drop counter.
+
+    This drives the real ``IPCWriter._drain()``: it pulls the event, the write
+    fails during ``drain()``, and by then the queue has been refilled so the
+    re-queue attempt raises ``QueueFull`` and the event is lost + counted.
+    """
+    queue: asyncio.Queue[Event] = asyncio.Queue(maxsize=1)
+    target = _make_event(message="lost")
+    filler = _make_event(message="filler")
+    await queue.put(target)  # _drain() will pull this one
+
+    drain_started = asyncio.Event()
+
+    async def failing_drain() -> None:
+        # Signal that the write is in-flight, let the test refill the queue,
+        # then fail as a broken connection would.
+        drain_started.set()
+        await asyncio.sleep(0)  # yield so the filler lands in the queue
+        raise ConnectionResetError("broken pipe")
+
+    fake_writer = MagicMock()
+    fake_writer.write = MagicMock()
+    fake_writer.drain = failing_drain
+
+    writer = IPCWriter(queue, "/unused.sock")
+    writer._writer = fake_writer  # type: ignore[attr-defined]
+
+    def _reason_value() -> float:
+        return INGEST_EVENTS_DROPPED_TOTAL.labels(reason="ipc_write_failure")._value.get()
+
+    before = _reason_value()
+
+    drain_task = asyncio.create_task(writer._drain())  # type: ignore[attr-defined]
+
+    # Once the write is in flight (queue emptied by get()), refill it so the
+    # writer's put_nowait re-queue attempt raises QueueFull.
+    await asyncio.wait_for(drain_started.wait(), timeout=2.0)
+    queue.put_nowait(filler)
+
+    # _drain() re-raises after the drop; it should finish promptly.
+    with pytest.raises(ConnectionResetError):
+        await asyncio.wait_for(drain_task, timeout=2.0)
+
+    assert _reason_value() == before + 1
 
 
 @pytest.mark.asyncio
