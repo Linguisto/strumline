@@ -57,7 +57,8 @@ INGEST_EVENTS_DROPPED_TOTAL = Counter(
     "telemetria_ingest_events_dropped_total",
     "Total events dropped by the ingest process.",
     ["reason"],
-    # reason values: "queue_full", "validation_error", "auth_error"
+    # reason values: "queue_full", "validation_error", "auth_error",
+    #                "otlp_normalized_size", "ipc_write_failure"
 )
 
 INGEST_QUEUE_DEPTH = Gauge(

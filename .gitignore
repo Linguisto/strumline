@@ -40,3 +40,6 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Experimental benchmark runs
+benchmarks/runs/
