@@ -28,12 +28,12 @@ Load tests state hardware/CPU limits, software versions, payload distribution, b
 
 The v1 target remains at least 1,000 events/sec on one documented core with receipt-to-enqueue P99 below 5 ms. CI smoke tests verify behavior; published benchmark runs establish the baseline.
 
-Failure scenarios cover PostgreSQL/DSN-cache behavior, processor restart, stale UDS, malformed frames, queue saturation, provider outage, 429/5xx retry, permanent 4xx, and graceful shutdown deadlines.
+Failure scenarios cover PostgreSQL/auth-token-cache behavior, processor restart, stale UDS, malformed frames, queue saturation, provider outage, 429/5xx retry, permanent 4xx, and graceful shutdown deadlines.
 
 ## Security and operations
 
 - document admin API key generation/rotation and management-network exposure
-- verify 256-bit DSN key entropy and the revocation cache window
+- verify 256-bit auth token key entropy and the revocation cache window
 - verify least-privilege read-only ingest database grants
 - document payload/frame limits, decompression policy, metrics exposure, and socket-directory permissions
 - scan images/dependencies and pin sample infrastructure versions
@@ -44,7 +44,7 @@ Failure scenarios cover PostgreSQL/DSN-cache behavior, processor restart, stale 
 
 Import-linter has run since package introduction; M7 makes the complete rule set a release gate. Processor may depend on sink abstractions/registry but not Loki directly. CLI/API may depend on control services but not the data plane.
 
-Release artifacts include CHANGELOG, CONTRIBUTING guide, migration/rollback notes, configuration reference, Compose profile matrix, and recovery limitations caused by best-effort delivery.
+Release artifacts include CHANGELOG, CONTRIBUTING guide, migration/rollback notes, configuration reference, development Compose and production deployment guidance, and recovery limitations caused by best-effort delivery.
 
 ## Acceptance criteria
 
@@ -54,6 +54,6 @@ Release artifacts include CHANGELOG, CONTRIBUTING guide, migration/rollback note
 - [x] Benchmark results are repeatable from the documented methodology and meet v1 targets.
 - [x] Each loss path has a distinct bounded-cardinality counter and resilience test.
 - [x] Security checks cover admin API, DSNs, database grants, payloads, metrics, UDS permissions, dependencies, and redaction.
-- [x] BYO observability and optional Compose profiles are documented and tested.
+- [x] Bundled development and BYO production observability are documented and tested.
 - [x] UTC storage and API serialization invariants have database, IPC, CLI, REST, and Loki tests.
 - [x] M0, M1, M2, M2b, M3, M4, M6, M6b, and M7 are complete; M5 remains post-v1.

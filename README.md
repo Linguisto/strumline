@@ -1,13 +1,13 @@
-# Telemetria
+# Strumline
 
 Non-blocking, lightning-fast structured telemetry collector. Application runtime event ingest — send what you
 want, from anywhere, over OTLP/HTTP.
 
-Point any OpenTelemetry SDK at Telemetria, set a token, and your logs are delivered.
+Point any OpenTelemetry SDK at Strumline, set a token, and your logs are delivered.
 No Collector to configure, no sink to wire up, no client library to install.
 
-Your application calls `POST /v1/logs` with an `x-telemetria-token` header and standard
-OTLP JSON or Protobuf. Telemetria handles authentication, routing, batching, retries,
+Your application calls `POST /v1/logs` with an `x-strumline-token` header and standard
+OTLP JSON or Protobuf. Strumline handles authentication, routing, batching, retries,
 and delivery to Loki. The token determines which project and app the events belong to —
 everything else is automatic.
 
@@ -25,7 +25,12 @@ Services after startup:
 - Prometheus → http://localhost:9090
 - Grafana → http://localhost:3000
 
-Code changes in `telemetria/` reload automatically inside the containers.
+This Compose stack is the bundled development environment. Production
+deployments use the Strumline image with operator-managed PostgreSQL, sink,
+and observability services. Loki is the recommended v1 sink; Prometheus and
+Grafana remain optional external integrations in production.
+
+Code changes in `strumline/` reload automatically inside the containers.
 
 ## Send logs
 
@@ -33,7 +38,7 @@ Use `POST /v1/logs` for one record or a batch. With an app ingestion token:
 
 ```bash
 curl http://localhost:8001/v1/logs \
-  -H "x-telemetria-token: ${TELEMETRIA_TOKEN}" \
+  -H "x-strumline-token: ${STRUMLINE_TOKEN}" \
   -H 'Content-Type: application/json' \
   --data '{"resourceLogs":[{"scopeLogs":[{"logRecords":[
     {"severityNumber":9,"body":{"stringValue":"Application started"}},
@@ -69,7 +74,7 @@ Configure with environment variables:
 
 ```bash
 export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:8001/v1/logs
-export OTEL_EXPORTER_OTLP_LOGS_HEADERS="x-telemetria-token=${TELEMETRIA_TOKEN}"
+export OTEL_EXPORTER_OTLP_LOGS_HEADERS="x-strumline-token=${STRUMLINE_TOKEN}"
 export OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf   # or http/json
 export OTEL_EXPORTER_OTLP_LOGS_COMPRESSION=gzip
 ```
@@ -100,14 +105,14 @@ Tag and push it manually, or let the release workflow handle it on a `vX.Y.Z` ta
 
 ## Docker
 
-One image, three containers — `telemetria-api`, `telemetria-ingest`, `telemetria-processor` — built from a multi-stage
+One image, three containers — `strumline-api`, `strumline-ingest`, `strumline-processor` — built from a multi-stage
 `docker/Dockerfile`:
 
 - `builder` — installs dependencies at `/app` with `uv`
-- `runtime` — minimal non-root image (`telemetria` uid 10001), no dev tools
+- `runtime` — minimal non-root image (`strumline` uid 10001), no dev tools
 - `dev` — extends runtime with pytest, ruff, mypy, and hot-reload
 
-Ingest and processor share a Unix-domain socket via a named volume (`/var/run/telemetria/`). PostgreSQL stores
+Ingest and processor share a Unix-domain socket via a named volume (`/var/run/strumline/`). PostgreSQL stores
 control-plane metadata only — raw telemetry never touches the database.
 
 ## Requirements
@@ -120,8 +125,8 @@ A local Python 3.14+ environment with `uv` is needed only for IDE tooling or `DC
 ## Roadmap
 
 OTLP/HTTP logs are implemented: Protobuf/JSON, gzip, app-token routing, and
-metadata preservation through the existing pipeline. M7 remains the v1
-hardening and release gate.
+metadata preservation through the existing pipeline. The v1 hardening and
+release gate (M7) is complete.
 
 After v1:
 

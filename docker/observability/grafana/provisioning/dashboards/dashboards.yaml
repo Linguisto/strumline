@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: Telemetria
+  - name: Strumline
     orgId: 1
-    folder: Telemetria
+    folder: Strumline
     type: file
     disableDeletion: true
     updateIntervalSeconds: 30

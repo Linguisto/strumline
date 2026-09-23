@@ -5,7 +5,7 @@
 
 ## Verdict and scope
 
-The intended system is coherent: one host, three Telemetria processes, direct-database CLI/control services, an isolated ingestion process, versioned UDS IPC, and a replaceable write-only sink. UTC-only canonical timestamps and optional first-class Prometheus/Grafana support remain requirements.
+The intended system is coherent: one host, three Strumline processes, direct-database CLI/control services, an isolated ingestion process, versioned UDS IPC, and a replaceable write-only sink. UTC-only canonical timestamps and optional first-class Prometheus/Grafana support remain requirements.
 
 The workspace currently contains plans and minimal project metadata, with no application implementation. Acceptance criteria below describe future evidence, not verified runtime behavior. Architecture is sufficiently defined to begin M0; contracts below should be settled before their owning implementation packets.
 
@@ -76,11 +76,11 @@ Owner: M0-B/M1-A/M2-D/M2b-B/M6-A.
 
 ### 6. Metadata updates affect routing and authorization
 
-Evidence: M1 exposes updates/deletes but does not define slug mutability, FK deletion policy, transaction boundaries, pagination, or DSN secret exposure. M2 caches DSNs with no capacity or unavailable-database policy.
+Evidence: M1 exposes updates/deletes but does not define slug mutability, FK deletion policy, transaction boundaries, pagination, or auth token secret exposure. M2 caches auth tokens with no capacity or unavailable-database policy.
 
-Proposal: make slugs immutable in v1; changing display names is safe and avoids stale cached routing labels. Specify cascade/restrict deletion, revocation semantics, cache capacity and TTL, and no stale authorization beyond expiry. Enforce nested project/app/DSN ownership in shared services, especially DSN revocation by ID.
+Proposal: make slugs immutable in v1; changing display names is safe and avoids stale cached routing labels. Specify cascade/restrict deletion, revocation semantics, cache capacity and TTL, and no stale authorization beyond expiry. Enforce nested project/app/auth token ownership in shared services, especially auth token revocation by ID.
 
-Choose a DSN secret policy before migrations. Recommended: reveal generated secrets once, store a digest, and return redacted listings. This changes the current plaintext-key sketch and remains a proposal. Define CLI/API pagination and exact error/exit mappings. Migration privileges belong to bootstrap/migration execution; routine control-plane privileges should be narrower.
+Choose an auth token secret policy before migrations. Recommended: reveal generated secrets once, store a digest, and return redacted listings. This changes the current plaintext-key sketch and remains a proposal. Define CLI/API pagination and exact error/exit mappings. Migration privileges belong to bootstrap/migration execution; routine control-plane privileges should be narrower.
 
 Owner: M1-A/M1-B/M1-C/M6b.
 
@@ -96,21 +96,21 @@ Owner: M3-A/M3-B.
 
 ### 8. Configuration and Compose setup have hidden dependencies
 
-Evidence: M0 shares one settings concept across processes; M1 offers host and container URLs; M6 writes `.env` before startup using a disposable container. No exact precedence, bind mount, service profile, or CLI entrypoint is specified.
+Evidence: M0 shares one settings concept across processes; M1 offers host and container URLs; M6 writes `.env` before startup using a disposable container. No exact precedence, bind mount, development-service, or CLI entrypoint behavior is specified.
 
 Proposal: typed settings per process plus shared primitives, one precedence table, empty-string handling, and startup-only settings unless explicitly documented otherwise. Require Loki secrets only when Loki is selected; require the admin key only in the enabled API process. Ingest must never receive write-capable DB credentials merely because every service consumes the same file.
 
 Give the disposable CLI an explicit profile, entrypoint, working-directory bind mount for generated configuration, and offline `init` mode. Describe the first-image-build step. Test both empty and existing database volumes, migrations, role creation/grants, and upgrades. Pin the tested Python 3.14 patch, uv, build backend, and container versions without inventing compatibility claims.
 
-Compose profiles start services; the plan still needs an explicit mechanism selecting `SINK_PROVIDER=loki` and generating optional Grafana provisioning. Support external Loki even when the bundled Loki profile is disabled ([Compose profiles](https://docs.docker.com/compose/how-tos/profiles/)).
+The development Compose stack selects `SINK_PROVIDER=loki` and provisions Grafana. Production deployment guidance must explain explicit sink selection and external Loki configuration without depending on the development stack.
 
 Owner: M0-C/M1-A/M3-B/M4-B/M6-A.
 
 ## Product clarifications and enrichments
 
-- Keep Telemetria's v1 contract focused on collection and forwarding. Sink replacement guarantees writes, not a portable log-query API. Loki-specific TUI log browsing should use an optional read adapter outside `EventSink`; another write provider need not implement queries.
+- Keep Strumline's v1 contract focused on collection and forwarding. Sink replacement guarantees writes, not a portable log-query API. Loki-specific TUI log browsing should use an optional read adapter outside `EventSink`; another write provider need not implement queries.
 - Define project/app isolation as routing/authentication scope, not separate storage tenants. State whether v1 is a trusted single-operator installation; the single admin key does not implement per-project admin authorization.
-- Specify the timestamp boundary: Telemetria-owned fields are UTC; arbitrary payload strings cannot reliably be recognized as dates. Recommended: treat payload as opaque JSON and never duplicate original non-UTC client timestamp fields automatically. `TIMESTAMPTZ` stores an instant, not the original zone; UTC sessions control output ([PostgreSQL documentation](https://www.postgresql.org/docs/current/datatype-datetime.html)).
+- Specify the timestamp boundary: Strumline-owned fields are UTC; arbitrary payload strings cannot reliably be recognized as dates. Recommended: treat payload as opaque JSON and never duplicate original non-UTC client timestamp fields automatically. `TIMESTAMPTZ` stores an instant, not the original zone; UTC sessions control output ([PostgreSQL documentation](https://www.postgresql.org/docs/current/datatype-datetime.html)).
 - Give presentation precedence in one place: explicit display override → stored app timezone → `APP_TIMEZONE` → UTC. Distinguish persistent app configuration from one-command/request display options. Add `tzdata` availability to slim-image checks.
 - Clarify `APP_TIMEZONE` as an operator default for presentation, not a process-wide `TZ` change. Metadata JSON and sink records remain UTC under every display setting.
 - Make the five-minute quick start one reproducible script with a concrete event fixture. Base/NullSink validates plumbing; the optional Loki walkthrough proves storage/querying.

@@ -5,7 +5,7 @@ IMAGE_TAG ?= dev
 
 # Container to exec into for non-host targets.
 # Override: make lint DC_EXEC="uv run"
-DC_EXEC ?= docker compose run --rm telemetria-cli
+DC_EXEC ?= docker compose run --rm strumline-cli
 
 # ---------------------------------------------------------------------------
 # Help
@@ -18,10 +18,10 @@ help:
 # Image
 # ---------------------------------------------------------------------------
 build: ## Build the production image (runtime stage, no dev deps)
-	TELEMETRIA_IMAGE_TAG=$(IMAGE_TAG) TELEMETRIA_TARGET=runtime docker compose build
+	STRUMLINE_IMAGE_TAG=$(IMAGE_TAG) STRUMLINE_TARGET=runtime docker compose build
 
 build.dev: ## Build the dev image (includes pytest, ruff, mypy)
-	TELEMETRIA_IMAGE_TAG=$(IMAGE_TAG) TELEMETRIA_TARGET=dev docker compose build
+	STRUMLINE_IMAGE_TAG=$(IMAGE_TAG) STRUMLINE_TARGET=dev docker compose build
 
 # ---------------------------------------------------------------------------
 # Stack
@@ -29,7 +29,7 @@ build.dev: ## Build the dev image (includes pytest, ruff, mypy)
 up: ## Build dev image, start stack, run migrations
 	@$(MAKE) init
 	@$(MAKE) build.dev
-	TELEMETRIA_IMAGE_TAG=$(IMAGE_TAG) docker compose up -d --force-recreate
+	STRUMLINE_IMAGE_TAG=$(IMAGE_TAG) docker compose up -d --force-recreate
 	@$(MAKE) migrate
 
 down: ## Stop and remove containers (keeps volumes)
@@ -44,13 +44,13 @@ init:
 		&& echo "✓ Generated APP_KEY" || true
 
 bash: ## Open a shell in a disposable CLI container
-	docker compose run --rm telemetria-cli bash
+	docker compose run --rm strumline-cli bash
 
 # ---------------------------------------------------------------------------
 # Quality gates — run via DC_EXEC (container by default, override with uv run)
 # ---------------------------------------------------------------------------
 lint: ## Run ruff, mypy, and import-linter
-	$(DC_EXEC) sh -c "ruff check telemetria/ tests/ && ruff format --check telemetria/ tests/ && mypy telemetria/ && lint-imports"
+	$(DC_EXEC) sh -c "ruff check strumline/ tests/ && ruff format --check strumline/ tests/ && mypy strumline/ && lint-imports"
 
 test: ## Run the full test suite
 	$(DC_EXEC) pytest
@@ -62,7 +62,7 @@ test.integration: ## Run integration tests only (requires DB)
 	$(DC_EXEC) pytest -m integration
 
 migrate: ## Run database migrations to head
-	$(DC_EXEC) telemetria migrate
+	$(DC_EXEC) strumline migrate
 
 # ---------------------------------------------------------------------------
 # Benchmarks

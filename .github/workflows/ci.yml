@@ -31,13 +31,13 @@ jobs:
         run: uv sync --locked --dev
 
       - name: Ruff — lint
-        run: uv run ruff check telemetria/ tests/
+        run: uv run ruff check strumline/ tests/
 
       - name: Ruff — format check
-        run: uv run ruff format --check telemetria/ tests/
+        run: uv run ruff format --check strumline/ tests/
 
       - name: mypy — type check
-        run: uv run mypy telemetria/
+        run: uv run mypy strumline/
 
       - name: import-linter — boundary check
         run: uv run lint-imports
@@ -63,16 +63,16 @@ jobs:
           file: docker/Dockerfile
           target: dev
           push: false
-          tags: telemetria:dev
+          tags: strumline:dev
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: type=docker,dest=telemetria-dev.tar.gz
+          outputs: type=docker,dest=strumline-dev.tar.gz
 
       - name: Upload image artifact
         uses: actions/upload-artifact@v4
         with:
-          name: telemetria-dev
-          path: telemetria-dev.tar.gz
+          name: strumline-dev
+          path: strumline-dev.tar.gz
           retention-days: 1
 
   test:
@@ -89,25 +89,25 @@ jobs:
       - name: Download image artifact
         uses: actions/download-artifact@v4
         with:
-          name: telemetria-dev
+          name: strumline-dev
 
       - name: Load image
-        run: docker load < telemetria-dev.tar.gz
+        run: docker load < strumline-dev.tar.gz
 
       - name: Start postgres
-        run: TELEMETRIA_IMAGE_TAG=dev docker compose up -d postgres
+        run: STRUMLINE_IMAGE_TAG=dev docker compose up -d postgres
 
       - name: Wait for postgres
         run: |
           for i in $(seq 1 30); do
-            docker compose exec -T postgres pg_isready -U telemetria && break
+            docker compose exec -T postgres pg_isready -U strumline && break
             sleep 1
           done
 
       - name: Run full test suite
         run: make test
         env:
-          TELEMETRIA_IMAGE_TAG: dev
+          STRUMLINE_IMAGE_TAG: dev
 
   push:
     name: Push dev image (multi-arch)

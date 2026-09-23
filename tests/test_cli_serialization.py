@@ -1,6 +1,6 @@
 """CLI UTC serialization tests.
 
-The CLI renders JSON output via ``telemetria.cli.helpers._to_json``. Per the
+The CLI renders JSON output via ``strumline.cli.helpers._to_json``. Per the
 UTC invariant, every timestamp the CLI emits must carry a trailing ``Z`` (not
 ``+00:00`` or a naive value). This covers the CLI leg of the UTC serialization
 invariant (database, IPC, CLI, REST, and Loki all have dedicated tests).
@@ -14,7 +14,7 @@ from uuid import UUID
 
 import pytest
 
-from telemetria.cli.helpers import _serializable, _to_json
+from strumline.cli.helpers import _serializable, _to_json
 
 pytestmark = pytest.mark.unit
 

@@ -1,6 +1,6 @@
 """M1-B: Control service tests.
 
-Tests project, app, and DSN services against a real PostgreSQL instance.
+Tests project, app, and auth token services against a real PostgreSQL instance.
 Covers: create, conflict, not-found, ownership, timezone validation, revocation.
 """
 
@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from telemetria.control.apps import AppService
-from telemetria.control.auth_tokens import AuthTokenService
-from telemetria.control.projects import ProjectService
-from telemetria.domain.errors import (
+from strumline.control.apps import AppService
+from strumline.control.auth_tokens import AuthTokenService
+from strumline.control.projects import ProjectService
+from strumline.domain.errors import (
     AlreadyRevokedError,
     ConflictError,
     NotFoundError,
@@ -159,10 +159,10 @@ async def test_app_ownership_check(migrated_factory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_dsn_create_and_list(migrated_factory) -> None:
+async def test_auth_token_create_and_list(migrated_factory) -> None:
     async with migrated_factory() as session, session.begin():
-        await ProjectService(session).create("dsn-parent", "DSN Parent")
-        app = await AppService(session).create("dsn-parent", "dsn-app", "DSN App")
+        await ProjectService(session).create("token-parent", "Token Parent")
+        app = await AppService(session).create("token-parent", "token-app", "Token App")
 
     async with migrated_factory() as session, session.begin():
         token, raw_key = await AuthTokenService(session).create(app.id)
@@ -177,7 +177,7 @@ async def test_dsn_create_and_list(migrated_factory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_dsn_revoke(migrated_factory) -> None:
+async def test_auth_token_revoke(migrated_factory) -> None:
     async with migrated_factory() as session, session.begin():
         await ProjectService(session).create("revoke-parent", "Revoke Parent")
         app = await AppService(session).create("revoke-parent", "revoke-app", "Revoke App")
@@ -190,7 +190,7 @@ async def test_dsn_revoke(migrated_factory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_dsn_double_revoke_raises(migrated_factory) -> None:
+async def test_auth_token_double_revoke_raises(migrated_factory) -> None:
     async with migrated_factory() as session, session.begin():
         await ProjectService(session).create("dbl-revoke-parent", "Dbl Revoke")
         app = await AppService(session).create(
@@ -207,12 +207,12 @@ async def test_dsn_double_revoke_raises(migrated_factory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_dsn_ownership_check(migrated_factory) -> None:
-    """Revoking a DSN via wrong app_id raises OwnershipError."""
+async def test_auth_token_ownership_check(migrated_factory) -> None:
+    """Revoking an auth token via the wrong app ID raises OwnershipError."""
     async with migrated_factory() as session, session.begin():
-        await ProjectService(session).create("dsn-own-parent", "DSN Own Parent")
-        app1 = await AppService(session).create("dsn-own-parent", "dsn-own-app1", "App1")
-        app2 = await AppService(session).create("dsn-own-parent", "dsn-own-app2", "App2")
+        await ProjectService(session).create("token-own-parent", "Token Own Parent")
+        app1 = await AppService(session).create("token-own-parent", "token-own-app1", "App1")
+        app2 = await AppService(session).create("token-own-parent", "token-own-app2", "App2")
         token_own, _ = await AuthTokenService(session).create(app1.id)
 
     with pytest.raises(OwnershipError):
@@ -221,8 +221,8 @@ async def test_dsn_ownership_check(migrated_factory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_dsn_key_entropy(migrated_factory) -> None:
-    """DSN keys should be ~43 characters (256 bits via token_urlsafe(32))."""
+async def test_auth_token_key_entropy(migrated_factory) -> None:
+    """Auth token keys should have 256 bits of entropy via token_urlsafe(32)."""
     async with migrated_factory() as session, session.begin():
         await ProjectService(session).create("entropy-parent", "Entropy Parent")
         app = await AppService(session).create("entropy-parent", "entropy-app", "Entropy App")

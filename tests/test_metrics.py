@@ -22,10 +22,10 @@ import pytest
 from httpx2 import ASGITransport, AsyncClient
 from prometheus_client import REGISTRY
 
-from telemetria.config import CommonSettings, IngestSettings
-from telemetria.domain.events import Event, EventBatch
-from telemetria.ingest.resolver import AuthTokenResolverError, ResolvedToken
-from telemetria.ingest.server import create_app as create_ingest_app
+from strumline.config import CommonSettings, IngestSettings
+from strumline.domain.events import Event, EventBatch
+from strumline.ingest.resolver import AuthTokenResolverError, ResolvedToken
+from strumline.ingest.server import create_app as create_ingest_app
 
 pytestmark = pytest.mark.unit
 
@@ -37,7 +37,7 @@ _RESOLVED = ResolvedToken(
     project_id="00000000-0000-0000-0000-000000000001",
     project_slug="my-proj",
 )
-_TOKEN_HEADER = {"x-telemetria-token": "valid-key", "content-type": "application/json"}
+_TOKEN_HEADER = {"x-strumline-token": "valid-key", "content-type": "application/json"}
 
 
 def _make_event(**kwargs) -> Event:  # type: ignore[no-untyped-def]
@@ -101,19 +101,19 @@ def _make_ingest_app(
 @pytest.mark.asyncio
 async def test_metrics_endpoint_enabled():
     """/metrics returns 200 with Prometheus text when enabled."""
-    from telemetria.api.server import create_app as create_api_app
+    from strumline.api.server import create_app as create_api_app
 
     app = create_api_app(CommonSettings(metrics_enabled=True))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         r = await c.get("/metrics")
     assert r.status_code == 200
-    assert "# HELP" in r.text or "# TYPE" in r.text or "telemetria_" in r.text
+    assert "# HELP" in r.text or "# TYPE" in r.text or "strumline_" in r.text
 
 
 @pytest.mark.asyncio
 async def test_metrics_endpoint_disabled():
     """/metrics returns 404 when METRICS_ENABLED=false."""
-    from telemetria.api.server import create_app as create_api_app
+    from strumline.api.server import create_app as create_api_app
 
     app = create_api_app(CommonSettings(metrics_enabled=False))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -129,7 +129,7 @@ async def test_metrics_endpoint_disabled():
 @pytest.mark.asyncio
 async def test_metrics_route_excluded_from_instrumentation():
     """/metrics requests must not appear as HTTP instrumentation labels."""
-    from telemetria.api.server import create_app as create_api_app
+    from strumline.api.server import create_app as create_api_app
 
     app = create_api_app(CommonSettings(metrics_enabled=True))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -178,7 +178,7 @@ async def test_route_label_is_template_not_raw_path():
 @pytest.mark.asyncio
 async def test_ingest_accepted_counter_increments():
     """INGEST_EVENTS_ACCEPTED_TOTAL increments on successful enqueue."""
-    from telemetria.metrics import INGEST_EVENTS_ACCEPTED_TOTAL
+    from strumline.metrics import INGEST_EVENTS_ACCEPTED_TOTAL
 
     before = INGEST_EVENTS_ACCEPTED_TOTAL._value.get()
     app = _make_ingest_app()
@@ -200,7 +200,7 @@ async def test_ingest_accepted_counter_increments():
 @pytest.mark.asyncio
 async def test_ingest_queue_full_is_retryable_not_counted_as_drop():
     """A refused OTLP batch can be retried and is not counted as a permanent drop."""
-    from telemetria.metrics import INGEST_EVENTS_DROPPED_TOTAL
+    from strumline.metrics import INGEST_EVENTS_DROPPED_TOTAL
 
     before = INGEST_EVENTS_DROPPED_TOTAL.labels(reason="queue_full")._value.get()
     app = _make_ingest_app(queue_size=1)
@@ -234,7 +234,7 @@ async def test_ingest_queue_full_is_retryable_not_counted_as_drop():
 @pytest.mark.asyncio
 async def test_ingest_auth_token_cache_miss_on_unknown():
     """INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL increments on auth token resolution failure."""
-    from telemetria.metrics import INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL
+    from strumline.metrics import INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL
 
     before = INGEST_AUTH_TOKEN_CACHE_MISSES_TOTAL._value.get()
     app = _make_ingest_app(resolver_result=AuthTokenResolverError("unknown"))
@@ -256,7 +256,7 @@ async def test_ingest_auth_token_cache_miss_on_unknown():
 @pytest.mark.asyncio
 async def test_ingest_auth_token_cache_hit_on_success():
     """INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL increments on successful auth token resolution."""
-    from telemetria.metrics import INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL
+    from strumline.metrics import INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL
 
     before = INGEST_AUTH_TOKEN_CACHE_HITS_TOTAL._value.get()
     app = _make_ingest_app()
@@ -282,9 +282,9 @@ async def test_ingest_auth_token_cache_hit_on_success():
 @pytest.mark.asyncio
 async def test_processor_drop_permanent_sink():
     """PROCESSOR_EVENTS_DROPPED_TOTAL{reason=sink_permanent} increments on PermanentSinkError."""
-    from telemetria.metrics import PROCESSOR_EVENTS_DROPPED_TOTAL
-    from telemetria.processor.batch import BatchProcessor
-    from telemetria.sinks import EventSink, PermanentSinkError
+    from strumline.metrics import PROCESSOR_EVENTS_DROPPED_TOTAL
+    from strumline.processor.batch import BatchProcessor
+    from strumline.sinks import EventSink, PermanentSinkError
 
     before = PROCESSOR_EVENTS_DROPPED_TOTAL.labels(reason="sink_permanent")._value.get()
 
@@ -317,9 +317,9 @@ async def test_processor_drop_permanent_sink():
 @pytest.mark.asyncio
 async def test_processor_drop_retry_exhaustion():
     """PROCESSOR_EVENTS_DROPPED_TOTAL{reason=sink_retries_exhausted} increments."""
-    from telemetria.metrics import PROCESSOR_EVENTS_DROPPED_TOTAL
-    from telemetria.processor.batch import BatchProcessor
-    from telemetria.sinks import EventSink, RetryableSinkError
+    from strumline.metrics import PROCESSOR_EVENTS_DROPPED_TOTAL
+    from strumline.processor.batch import BatchProcessor
+    from strumline.sinks import EventSink, RetryableSinkError
 
     before = PROCESSOR_EVENTS_DROPPED_TOTAL.labels(reason="sink_retries_exhausted")._value.get()
 

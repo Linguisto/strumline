@@ -15,11 +15,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from telemetria.domain.events import Event, EventBatch
-from telemetria.ipc.codec import PROTOCOL_VERSION, encode_frame
-from telemetria.processor.batch import BatchProcessor
-from telemetria.processor.uds_server import UDSServer
-from telemetria.sinks import (
+from strumline.domain.events import Event, EventBatch
+from strumline.ipc.codec import PROTOCOL_VERSION, encode_frame
+from strumline.processor.batch import BatchProcessor
+from strumline.processor.uds_server import UDSServer
+from strumline.sinks import (
     EventSink,
     NullSink,
     PermanentSinkError,
@@ -412,10 +412,10 @@ async def test_end_to_end_http_to_null_sink():
 
     from httpx2 import ASGITransport, AsyncClient
 
-    from telemetria.config import IngestSettings
-    from telemetria.ingest.resolver import ResolvedToken
-    from telemetria.ingest.server import create_app
-    from telemetria.ingest.writer import IPCWriter
+    from strumline.config import IngestSettings
+    from strumline.ingest.resolver import ResolvedToken
+    from strumline.ingest.server import create_app
+    from strumline.ingest.writer import IPCWriter
 
     with tempfile.TemporaryDirectory() as tmpdir:
         sock_path = str(Path(tmpdir) / "e2e.sock")
@@ -447,7 +447,7 @@ async def test_end_to_end_http_to_null_sink():
         writer = IPCWriter(app.state.queue, sock_path)
         writer_task = asyncio.create_task(writer.run())
 
-        headers = {"x-telemetria-token": "key", "content-type": "application/json"}
+        headers = {"x-strumline-token": "key", "content-type": "application/json"}
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             r = await client.post(
                 "/v1/logs",

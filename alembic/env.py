@@ -14,9 +14,9 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from telemetria.config import DatabaseSettings
-from telemetria.db.base import Base
-import telemetria.db.models  # noqa: F401 — register models with metadata
+from strumline.config import DatabaseSettings
+from strumline.db.base import Base
+import strumline.db.models  # noqa: F401 — register models with metadata
 
 # Alembic Config object
 config = context.config

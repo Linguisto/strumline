@@ -1,15 +1,15 @@
-# Telemetria — Roadmap
+# Strumline — Roadmap
 
 ## Product contract
 
-Telemetria is a best-effort telemetry collector. It accepts structured events, resolves a project and app from a DSN, buffers and batches events, and dispatches them through a replaceable sink provider. Loki is the first supported sink, not a processor dependency.
+Strumline is a best-effort telemetry collector. It accepts structured events, resolves a project and app from an auth token, buffers and batches events, and dispatches them through a replaceable sink provider. Loki is the first supported sink, not a processor dependency.
 
 The v1 deployment is one host with three containers built from one image:
 
 ```text
-telemetria-api        :8000  control plane health; admin REST API when enabled
-telemetria-ingest     :8001  HTTP ingestion and IPC writer
-telemetria-processor  :8002  IPC reader, batching, sink dispatch, health/metrics
+strumline-api        :8000  control plane health; admin REST API when enabled
+strumline-ingest     :8001  HTTP ingestion and IPC writer
+strumline-processor  :8002  IPC reader, batching, sink dispatch, health/metrics
 ```
 
 Ingest and processor share a Unix-domain-socket directory. PostgreSQL stores control-plane metadata only. Raw telemetry is never stored in PostgreSQL.
@@ -50,11 +50,11 @@ class RetryableSinkError(Exception): ...
 class PermanentSinkError(Exception): ...
 ```
 
-`telemetria.sinks` owns a registry/factory selected by `SINK_PROVIDER=null|loki`. The provider is global in v1. Retryable failures use exponential backoff with jitter; permanent failures and retry-exhausted batches are counted and discarded. Per-app routing, fan-out, and `sink_configs` are deferred.
+`strumline.sinks` owns a registry/factory selected by `SINK_PROVIDER=null|loki`. The provider is global in v1. Retryable failures use exponential backoff with jitter; permanent failures and retry-exhausted batches are counted and discarded. Per-app routing, fan-out, and `sink_configs` are deferred.
 
-### Optional, first-class observability
+### First-class, deployment-independent observability
 
-Every process exposes `/metrics` when `METRICS_ENABLED=true`, without requiring Prometheus or Grafana. The base Compose stack starts neither. The `observability` profile supplies pinned sample Prometheus and Grafana services; operators may instead bring their own and use the shipped scrape config and dashboard JSON. Loki remains a separate optional profile. Grafana metric panels work without Loki; log panels clearly report that Loki is unavailable.
+Every process exposes `/metrics` when `METRICS_ENABLED=true`, without requiring Prometheus or Grafana. The development Compose stack supplies pinned Loki, Prometheus, and Grafana services. Production deployments use the Strumline image with operator-managed infrastructure; operators may bring their own compatible services and use the shipped scrape config and dashboard JSON.
 
 ## Architecture and import boundaries
 
@@ -64,7 +64,7 @@ HTTP client -> ingest -> bounded queue -> UDS frames -> processor queue
                                                     -> EventSink provider
 ```
 
-- `ingest/` may import `domain/`, `ipc/`, `metrics/`, and only the read-only DSN resolver from `db/`.
+- `ingest/` may import `domain/`, `ipc/`, `metrics/`, and only the read-only auth token resolver from `db/`.
 - `processor/` may import `domain/`, `ipc/`, `metrics/`, and the sink contract/factory; it must not import provider implementations directly.
 - `control/` contains application services shared by CLI and admin REST API.
 - `cli/` and `api/` call `control/`; neither imports the data plane.
@@ -74,11 +74,11 @@ HTTP client -> ingest -> bounded queue -> UDS frames -> processor queue
 ## Repository shape
 
 ```text
-telemetria/
+strumline/
 ├── api/              # health and optional /admin/v1 routes
 ├── cli/              # scriptable CLI; Rich/Textual polish later
 ├── control/          # control-plane application services
-├── db/               # models, UTC sessions, repositories, DSN resolver
+├── db/               # models, UTC sessions, repositories, auth token resolver
 ├── domain/           # pure entities/errors
 ├── ingest/           # HTTP receiver and IPC writer
 ├── ipc/              # versioned framing contract
@@ -132,9 +132,9 @@ are a later candidate rather than an M8 completion requirement.
 
 ## v1 success criteria
 
-1. Base `docker compose up` starts PostgreSQL and the three Telemetria containers from one tagged image.
-2. Optional `loki` and `observability` profiles work independently and together; BYO Prometheus/Grafana is documented.
-3. Project, app (including presentation timezone), and DSN management works through the CLI and runtime-enabled REST API.
+1. Base `docker compose up` starts PostgreSQL and the three Strumline containers from one tagged image.
+2. The development Compose stack includes Loki, Prometheus, and Grafana; production BYO sink and observability deployment is documented.
+3. Project, app (including presentation timezone), and auth token management works through the CLI and runtime-enabled REST API.
 4. Create resources, ingest an event, and observe it through the selected sink in under five minutes.
 5. Ingest sustains at least 1,000 events/sec on one documented single-core test environment; HTTP receipt-to-enqueue P99 is below 5 ms.
 6. Overload and sink failure preserve service health while distinct drop/error counters explain losses.

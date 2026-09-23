@@ -21,16 +21,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from telemetria.config import IngestSettings
-from telemetria.domain.events import Event, EventBatch
-from telemetria.ingest.resolver import ResolvedToken
-from telemetria.ingest.server import create_app
-from telemetria.ingest.writer import IPCWriter
-from telemetria.ipc.codec import decode_envelope_body, encode_frame
-from telemetria.processor.batch import BatchProcessor
-from telemetria.processor.uds_server import UDSServer
-from telemetria.sinks import EventSink
-from telemetria.sinks.loki import build_push_payload
+from strumline.config import IngestSettings
+from strumline.domain.events import Event, EventBatch
+from strumline.ingest.resolver import ResolvedToken
+from strumline.ingest.server import create_app
+from strumline.ingest.writer import IPCWriter
+from strumline.ipc.codec import decode_envelope_body, encode_frame
+from strumline.processor.batch import BatchProcessor
+from strumline.processor.uds_server import UDSServer
+from strumline.sinks import EventSink
+from strumline.sinks.loki import build_push_payload
 
 pytestmark = pytest.mark.unit
 
@@ -139,7 +139,7 @@ async def test_queue_saturation_is_atomic_no_partial_admission() -> None:
     """
     from httpx2 import ASGITransport, AsyncClient
 
-    from telemetria.ingest.otlp import encode_frame as _ef  # noqa: F401 — local encode check
+    from strumline.ingest.otlp import encode_frame as _ef  # noqa: F401 — local encode check
 
     queue_size = 3
     app = _make_ingest_app(queue_size=queue_size)
@@ -149,7 +149,7 @@ async def test_queue_saturation_is_atomic_no_partial_admission() -> None:
             {"scopeLogs": [{"logRecords": [{"severityNumber": 9, "body": {"stringValue": "x"}}]}]}
         ]
     }
-    headers = {"x-telemetria-token": "t", "content-type": "application/json"}
+    headers = {"x-strumline-token": "t", "content-type": "application/json"}
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Fill the queue exactly

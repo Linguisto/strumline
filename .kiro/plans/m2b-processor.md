@@ -26,7 +26,7 @@ class RetryableSinkError(Exception): ...
 class PermanentSinkError(Exception): ...
 ```
 
-`telemetria.sinks.registry` maps `SINK_PROVIDER` to a provider factory. M2b supplies `NullSink`; M3 registers `LokiSink`. Provider configuration is global for v1. `BatchProcessor` imports only `EventSink` and the generic errors, never Loki or another implementation.
+`strumline.sinks.registry` maps `SINK_PROVIDER` to a provider factory. M2b supplies `NullSink`; M3 registers `LokiSink`. Provider configuration is global for v1. `BatchProcessor` imports only `EventSink` and the generic errors, never Loki or another implementation.
 
 ```text
 SINK_PROVIDER=null

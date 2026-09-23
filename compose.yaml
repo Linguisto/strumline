@@ -1,22 +1,22 @@
-name: telemetria
+name: strumline
 
 # ---------------------------------------------------------------------------
 # One image, three process containers, PostgreSQL, Loki, Prometheus, Grafana.
 #
 # Build:    docker compose build
 # Start:    docker compose up -d
-# CLI:      docker compose run --rm telemetria-cli telemetria <command>
+# CLI:      docker compose run --rm strumline-cli strumline <command>
 # ---------------------------------------------------------------------------
 
 x-db-env: &db-env
   DB_HOST: "${DB_HOST:-postgres}"
   DB_PORT: "${DB_PORT:-5432}"
-  DB_NAME: "${DB_NAME:-telemetria}"
-  DB_USER: "${DB_USER:-telemetria}"
-  DB_PASSWORD: "${DB_PASSWORD:-telemetria}"
+  DB_NAME: "${DB_NAME:-strumline}"
+  DB_USER: "${DB_USER:-strumline}"
+  DB_PASSWORD: "${DB_PASSWORD:-strumline}"
 
 x-ingest-db-env: &ingest-db-env
-  INGEST_DB_USER: "${INGEST_DB_USER:-telemetria_ingest}"
+  INGEST_DB_USER: "${INGEST_DB_USER:-strumline_ingest}"
   INGEST_DB_PASSWORD: "${INGEST_DB_PASSWORD:-}"
 
 x-common-env: &common-env
@@ -43,24 +43,26 @@ services:
   # API — control plane health endpoint (:8000)
   # --------------------------------------------------------------------------
   api:
-    image: telemetria:${TELEMETRIA_IMAGE_TAG:-dev}
+    image: strumline:${STRUMLINE_IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: ${TELEMETRIA_TARGET:-dev}
+      target: ${STRUMLINE_TARGET:-dev}
     command: >
-      uvicorn telemetria.api.server:app
+      uvicorn strumline.api.server:app
       --host 0.0.0.0 --port 8000
-      --reload --reload-dir /app/telemetria
+      --reload --reload-dir /app/strumline
     environment:
       <<: [ *common-env, *db-env, *api-env ]
     ports:
       - "8000:8000"
     volumes:
-      - ./telemetria:/app/telemetria:ro
+      - ./strumline:/app/strumline:ro
     depends_on:
       postgres:
         condition: service_healthy
+      loki:
+        condition: service_started
     healthcheck:
       test: [
         "CMD", "python3", "-c",
@@ -76,22 +78,22 @@ services:
   # Ingest — HTTP receiver and IPC writer (:8001)
   # --------------------------------------------------------------------------
   ingest:
-    image: telemetria:${TELEMETRIA_IMAGE_TAG:-dev}
+    image: strumline:${STRUMLINE_IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: ${TELEMETRIA_TARGET:-dev}
+      target: ${STRUMLINE_TARGET:-dev}
     command: >
-      uvicorn telemetria.ingest.server:app
+      uvicorn strumline.ingest.server:app
       --host 0.0.0.0 --port 8001
-      --reload --reload-dir /app/telemetria
+      --reload --reload-dir /app/strumline
     environment:
       <<: [ *common-env, *db-env, *ingest-db-env ]
     ports:
       - "8001:8001"
     volumes:
-      - ipc-socket:/var/run/telemetria
-      - ./telemetria:/app/telemetria:ro
+      - ipc-socket:/var/run/strumline
+      - ./strumline:/app/strumline:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,27 +110,25 @@ services:
   # Processor — IPC reader, batching, sink dispatch (:8002, localhost only)
   # --------------------------------------------------------------------------
   processor:
-    image: telemetria:${TELEMETRIA_IMAGE_TAG:-dev}
+    image: strumline:${STRUMLINE_IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: ${TELEMETRIA_TARGET:-dev}
+      target: ${STRUMLINE_TARGET:-dev}
     command: >
-      uvicorn telemetria.processor.server:app
+      uvicorn strumline.processor.server:app
       --host 0.0.0.0 --port 8002
-      --reload --reload-dir /app/telemetria
+      --reload --reload-dir /app/strumline
     environment:
       <<: [ *common-env, *db-env, *sink-env ]
     ports:
       - "127.0.0.1:8002:8002"
     volumes:
-      - ipc-socket:/var/run/telemetria
-      - ./telemetria:/app/telemetria:ro
+      - ipc-socket:/var/run/strumline
+      - ./strumline:/app/strumline:ro
     depends_on:
       postgres:
         condition: service_healthy
-      loki:
-        condition: service_started
     healthcheck:
       test: [ "CMD", "python3", "-c",
               "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')" ]
@@ -140,20 +140,20 @@ services:
 
   # --------------------------------------------------------------------------
   # Disposable CLI — run migrations and control-plane commands
-  # Usage: docker compose run --rm telemetria-cli telemetria <command>
+  # Usage: docker compose run --rm strumline-cli strumline <command>
   # --------------------------------------------------------------------------
-  telemetria-cli:
-    image: telemetria:${TELEMETRIA_IMAGE_TAG:-dev}
+  strumline-cli:
+    image: strumline:${STRUMLINE_IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: ${TELEMETRIA_TARGET:-dev}
+      target: ${STRUMLINE_TARGET:-dev}
     profiles:
       - cli
     environment:
       <<: [ *common-env, *db-env ]
     volumes:
-      - ./telemetria:/app/telemetria:ro
+      - ./strumline:/app/strumline:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -165,13 +165,13 @@ services:
   postgres:
     image: postgres:18
     environment:
-      POSTGRES_DB: "${DB_NAME:-telemetria}"
-      POSTGRES_USER: "${DB_USER:-telemetria}"
-      POSTGRES_PASSWORD: "${DB_PASSWORD:-telemetria}"
+      POSTGRES_DB: "${DB_NAME:-strumline}"
+      POSTGRES_USER: "${DB_USER:-strumline}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-strumline}"
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-telemetria} -d ${DB_NAME:-telemetria}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-strumline} -d ${DB_NAME:-strumline}" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -179,7 +179,7 @@ services:
     restart: unless-stopped
 
   # --------------------------------------------------------------------------
-  # Loki — log aggregation backend for the default loki sink
+  # Loki — bundled development log aggregation backend
   # --------------------------------------------------------------------------
   loki:
     image: grafana/loki:3.7.8

@@ -3,7 +3,7 @@
 **Type:** Enhancement  
 **Depends on:** M3  
 **Unlocks:** M6  
-**Goal:** Stabilize cross-process metrics and provide optional, first-class Prometheus/Grafana support for bundled and bring-your-own deployments.
+**Goal:** Stabilize cross-process metrics and provide first-class Prometheus/Grafana support for bundled development and bring-your-own production deployments.
 
 ## Metrics contract
 
@@ -18,19 +18,19 @@ Required families include:
 - `processor_events_dropped_total{reason}`
 - batches, batch sizes, and flush latency
 - sink writes, retries, permanent failures, exhausted retries, and latency by provider name
-- DSN cache hits/misses and control-plane operation counts
+- auth token cache hits/misses and control-plane operation counts
 
-Labels must be bounded. Raw paths, DSNs, event IDs, project/app names, messages, and payload values are forbidden labels. `/metrics` itself is excluded from request instrumentation recursion.
+Labels must be bounded. Raw paths, auth token keys, event IDs, project/app names, messages, and payload values are forbidden labels. `/metrics` itself is excluded from request instrumentation recursion.
 
 ## Optional sample stack
 
-Base `docker compose up` starts neither Prometheus nor Grafana. A single `observability` profile starts pinned sample versions of both:
+The development Compose stack starts pinned Prometheus and Grafana services:
 
 ```text
-docker compose --profile observability up -d
+docker compose up -d
 ```
 
-Prometheus scrapes `telemetria-api:8000`, `telemetria-ingest:8001`, and `telemetria-processor:8002` over the Compose network. Grafana is provisioned with the Prometheus data source and dashboard JSON. If the separate `loki` profile is active, Grafana also provisions Loki and enables log panels; otherwise those panels display an explicit unavailable state while metric panels remain useful.
+Prometheus scrapes `strumline-api:8000`, `strumline-ingest:8001`, and `strumline-processor:8002` over the Compose network. Grafana is provisioned with the Prometheus and Loki data sources and dashboard JSON. In production, the same artifacts can be applied to compatible operator-managed services.
 
 ## Bring your own
 
@@ -41,7 +41,7 @@ Ship standalone, documented artifacts:
 - optional Loki data-source/dashboard fragment
 - production guidance for authentication/network controls around metrics endpoints
 
-External URLs such as `PROMETHEUS_URL`, `GRAFANA_URL`, and `LOKI_URL` are optional hints for `doctor`/TUI. Telemetria does not require these services to process events.
+External URLs such as `PROMETHEUS_URL`, `GRAFANA_URL`, and `LOKI_URL` are optional hints for `doctor`/TUI. Strumline does not require these services to process events.
 
 ## Acceptance criteria
 
@@ -49,7 +49,6 @@ External URLs such as `PROMETHEUS_URL`, `GRAFANA_URL`, and `LOKI_URL` are option
 - [ ] Ingest and processor drops have distinct counters and reasons.
 - [ ] Sink labels use the selected provider's stable `name`.
 - [ ] Route labels are templates; a cardinality test rejects dynamic identifiers.
-- [ ] The `observability` profile starts pinned Prometheus and Grafana and scrapes all three processes.
-- [ ] Grafana metric panels work without Loki; log panels degrade clearly.
-- [ ] `loki` and `observability` profiles work independently and together.
+- [ ] The development Compose stack starts pinned Prometheus and Grafana and scrapes all three processes.
+- [ ] The shipped configuration and dashboard work with compatible operator-managed production services.
 - [ ] BYO scrape config and dashboard JSON import without using the bundled services.

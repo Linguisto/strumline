@@ -18,8 +18,8 @@ import pytest
 from httpx2 import ASGITransport, AsyncClient
 from pydantic import ValidationError
 
-from telemetria.api.server import create_app
-from telemetria.config import APISettings, CommonSettings
+from strumline.api.server import create_app
+from strumline.config import APISettings, CommonSettings
 
 pytestmark = pytest.mark.unit
 
@@ -35,7 +35,7 @@ _T_ID = uuid4()
 def _make_project(**kwargs):  # type: ignore[no-untyped-def]
     from datetime import UTC, datetime
 
-    from telemetria.domain.entities import Project
+    from strumline.domain.entities import Project
 
     defaults = dict(
         id=_P_ID,
@@ -51,7 +51,7 @@ def _make_project(**kwargs):  # type: ignore[no-untyped-def]
 def _make_app(**kwargs):  # type: ignore[no-untyped-def]
     from datetime import UTC, datetime
 
-    from telemetria.domain.entities import App
+    from strumline.domain.entities import App
 
     defaults = dict(
         id=_A_ID,
@@ -69,7 +69,7 @@ def _make_app(**kwargs):  # type: ignore[no-untyped-def]
 def _make_token(**kwargs):  # type: ignore[no-untyped-def]
     from datetime import UTC, datetime
 
-    from telemetria.domain.entities import AuthToken
+    from strumline.domain.entities import AuthToken
 
     defaults = dict(
         id=_T_ID,
@@ -145,7 +145,7 @@ async def test_wrong_key_401() -> None:
 async def test_list_projects() -> None:
     project = _make_project()
     with patch(
-        "telemetria.control.projects.ProjectService.list_all", new=AsyncMock(return_value=[project])
+        "strumline.control.projects.ProjectService.list_all", new=AsyncMock(return_value=[project])
     ):
         application = _enabled_app()
         async with _client(application) as c:
@@ -161,7 +161,7 @@ async def test_list_projects() -> None:
 async def test_create_project() -> None:
     project = _make_project()
     with patch(
-        "telemetria.control.projects.ProjectService.create", new=AsyncMock(return_value=project)
+        "strumline.control.projects.ProjectService.create", new=AsyncMock(return_value=project)
     ):
         application = _enabled_app()
         async with _client(application) as c:
@@ -174,10 +174,10 @@ async def test_create_project() -> None:
 
 @pytest.mark.asyncio
 async def test_get_project_not_found() -> None:
-    from telemetria.domain.errors import NotFoundError
+    from strumline.domain.errors import NotFoundError
 
     with patch(
-        "telemetria.control.projects.ProjectService.get",
+        "strumline.control.projects.ProjectService.get",
         new=AsyncMock(side_effect=NotFoundError("Project", "nope")),
     ):
         application = _enabled_app()
@@ -189,7 +189,7 @@ async def test_get_project_not_found() -> None:
 @pytest.mark.asyncio
 async def test_delete_project() -> None:
     with patch(
-        "telemetria.control.projects.ProjectService.delete", new=AsyncMock(return_value=None)
+        "strumline.control.projects.ProjectService.delete", new=AsyncMock(return_value=None)
     ):
         application = _enabled_app()
         async with _client(application) as c:
@@ -206,7 +206,7 @@ async def test_delete_project() -> None:
 async def test_list_apps() -> None:
     app_obj = _make_app()
     with (
-        patch("telemetria.control.apps.AppService.list_all", new=AsyncMock(return_value=[app_obj])),
+        patch("strumline.control.apps.AppService.list_all", new=AsyncMock(return_value=[app_obj])),
     ):
         application = _enabled_app()
         async with _client(application) as c:
@@ -217,10 +217,10 @@ async def test_list_apps() -> None:
 
 @pytest.mark.asyncio
 async def test_create_app_conflict() -> None:
-    from telemetria.domain.errors import ConflictError
+    from strumline.domain.errors import ConflictError
 
     with patch(
-        "telemetria.control.apps.AppService.create",
+        "strumline.control.apps.AppService.create",
         new=AsyncMock(side_effect=ConflictError("App", "slug", "my-app")),
     ):
         application = _enabled_app()
@@ -243,9 +243,9 @@ async def test_create_token_returns_key() -> None:
     token = _make_token()
     raw = "raw-secret-key-abc123"
     with (
-        patch("telemetria.control.apps.AppService.get", new=AsyncMock(return_value=_make_app())),
+        patch("strumline.control.apps.AppService.get", new=AsyncMock(return_value=_make_app())),
         patch(
-            "telemetria.control.auth_tokens.AuthTokenService.create",
+            "strumline.control.auth_tokens.AuthTokenService.create",
             new=AsyncMock(return_value=(token, raw)),
         ),
     ):
@@ -261,9 +261,9 @@ async def test_list_tokens_no_key() -> None:
     """Token listing never exposes the key_hash."""
     token = _make_token()
     with (
-        patch("telemetria.control.apps.AppService.get", new=AsyncMock(return_value=_make_app())),
+        patch("strumline.control.apps.AppService.get", new=AsyncMock(return_value=_make_app())),
         patch(
-            "telemetria.control.auth_tokens.AuthTokenService.list_by_app",
+            "strumline.control.auth_tokens.AuthTokenService.list_by_app",
             new=AsyncMock(return_value=[token]),
         ),
     ):
@@ -281,9 +281,9 @@ async def test_list_tokens_no_key() -> None:
 async def test_revoke_token() -> None:
     token = _make_token(is_active=False)
     with (
-        patch("telemetria.control.apps.AppService.get", new=AsyncMock(return_value=_make_app())),
+        patch("strumline.control.apps.AppService.get", new=AsyncMock(return_value=_make_app())),
         patch(
-            "telemetria.control.auth_tokens.AuthTokenService.revoke",
+            "strumline.control.auth_tokens.AuthTokenService.revoke",
             new=AsyncMock(return_value=token),
         ),
     ):

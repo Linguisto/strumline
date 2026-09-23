@@ -4,7 +4,7 @@ The processor forwards event batches to a configurable sink. The sink is the onl
 
 ## Sink contract
 
-Every provider implements the `EventSink` ABC from `telemetria.sinks`:
+Every provider implements the `EventSink` ABC from `strumline.sinks`:
 
 ```python
 class EventSink(ABC):
@@ -36,7 +36,7 @@ Drops every event silently. Useful for testing the ingest/processor pipeline wit
 SINK_PROVIDER=null
 ```
 
-### `loki` (Grafana Loki — default)
+### `loki` (Grafana Loki — development default)
 
 Pushes batches to the [Loki push API](https://grafana.com/docs/loki/latest/reference/loki-http-api/#ingest-logs).
 
@@ -53,7 +53,7 @@ Each event becomes one log line in a stream. Streams are keyed on low-cardinalit
 
 | Loki label  | Value                                      |
 |-------------|--------------------------------------------|
-| `service`   | `telemetria` (constant)                    |
+| `service`   | `strumline` (constant)                    |
 | `project`   | `Event.project_slug`                       |
 | `app`       | `Event.app_slug`                           |
 | `level`     | `Event.level`                              |
@@ -85,7 +85,17 @@ The **entry timestamp** (the value Loki uses for storage ordering) is always `re
 
 #### Loki compose service
 
-The bundled `loki` service starts with the base stack (`docker compose up -d`). You can also point `LOKI_URL` at an external Loki instance and remove the bundled service entirely.
+The repository's development Compose stack starts Loki and selects it by
+default:
+
+```bash
+docker compose up -d
+```
+
+Production deployments run the Strumline image with an operator-managed sink.
+Loki is the recommended v1 provider: set `SINK_PROVIDER=loki` and point
+`LOKI_URL` at your Loki instance. `NullSink` remains available for tests and
+benchmarks.
 
 ## Failure taxonomy
 
@@ -105,9 +115,9 @@ Retries may produce duplicate event IDs in the sink (e.g. Loki accepted the batc
 
 ## Adding a new provider
 
-1. Create `telemetria/sinks/<name>.py` implementing `EventSink`.
-2. Add `"<name>": "telemetria.sinks.<name>.<ClassName>"` to `_LAZY_PROVIDERS` in `telemetria/sinks/__init__.py`.
-3. Add provider settings to `telemetria/config.py` as a new `<Name>Settings` class.
+1. Create `strumline/sinks/<name>.py` implementing `EventSink`.
+2. Add `"<name>": "strumline.sinks.<name>.<ClassName>"` to `_LAZY_PROVIDERS` in `strumline/sinks/__init__.py`.
+3. Add provider settings to `strumline/config.py` as a new `<Name>Settings` class.
 4. Document the provider in this file and in `docs/configuration.md`.
 5. Add unit tests in `tests/test_<name>.py` — at minimum: happy path, retryable errors, permanent errors, and a round-trip payload test.
 

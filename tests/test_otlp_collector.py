@@ -37,7 +37,7 @@ exporters:
     encoding: {encoding}
     compression: gzip
     headers:
-      x-telemetria-token: test-token
+      x-strumline-token: test-token
     sending_queue:
       enabled: false
 service:
