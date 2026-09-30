@@ -20,11 +20,12 @@ items in the GitHub UI.
   `THIRD_PARTY_NOTICES.md`; the runtime image and wheel contain the project
   license and notices, while `.kiro/skills/` remains source-only.
 
-The full-history scan has one exact-fingerprint exception in `.gitleaksignore`.
-It is a false positive on the Python expression `headers=_TOKEN,
-compression=Compression.Gzip` in an old test commit; `_TOKEN` contained the
-literal non-secret value `test-token`. Do not broaden this exception by path,
-commit, or rule.
+The full-history scan has two exact-fingerprint exceptions in
+`.gitleaksignore`. The first is an exporter call in an old test fixture whose
+referenced variable contained the literal non-secret value `test-token`. The
+second is the original release-checklist prose that described that same false
+positive and inadvertently matched the detector again. Do not broaden either
+exception by path, commit, or rule.
 
 The smoke script uses a separate Compose project and removes only its own
 containers and volumes. Build and provisioning time is outside the five-minute
