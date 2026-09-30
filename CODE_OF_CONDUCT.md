@@ -20,7 +20,7 @@ decisions will consider context, severity, recurrence, and the safety of people
 affected. Reports are handled as privately as the available channel permits.
 
 Report conduct concerns privately through the repository's
-[private reporting form](https://github.com/Linguisto/telemetria/security/advisories/new)
+[private reporting form](https://github.com/Linguisto/strumline/security/advisories/new)
 and begin the title with `Conduct report`. If that form is unavailable, open a
 public issue containing no incident details and ask the maintainer for a private
 channel. Do not identify affected people or include evidence in that issue.
