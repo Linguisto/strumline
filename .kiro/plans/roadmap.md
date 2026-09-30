@@ -91,7 +91,7 @@ strumline/
 ## Milestone dependency graph
 
 ```text
-M0 -> M1 (basic CLI) -> M2 -> M2b -> M3 -> M4 -> M6 -> M7 -> v1.0
+M0 -> M1 (basic CLI) -> M2 -> M2b -> M3 -> M4 -> M6 -> M7 -> M7b -> v1.0
       M1 -> M6b (admin API) -------------------------> M7
                            M2b -> M5 (post-v1 local ingest socket)
 v1.0 + existing OTLP/HTTP logs -> M8 (post-v1 deeper OTLP integration)
@@ -110,6 +110,8 @@ M7 joins the completed data pipeline, observability, CLI/TUI, and REST tracks. N
 | [M6](m6-cli-dx.md) | CLI/TUI and operator experience polish | M4 | yes |
 | [M6b](m6b-admin-api.md) | Runtime-gated admin REST API | M1 | yes |
 | [M7](m7-hardening.md) | Protocol docs, performance evidence, security/docs | M3, M4, M6, M6b | yes |
+| [M7b](m7b-release-preparation.md) | Public OSS and release preparation | M7 | yes |
+| [M7c](m7c-polishing.md) | Optional CLI/docs/developer-experience polish | M7b | no |
 | [M5](m5-unix-socket.md) | Optional client-to-ingest Unix socket | M2b | no |
 | [M8](m8-otlp-integration.md) | OTLP/gRPC, deeper log integration, traces and metrics | M7/v1, existing OTLP/HTTP logs | no |
 
@@ -139,5 +141,5 @@ are a later candidate rather than an M8 completion requirement.
 5. Ingest sustains at least 1,000 events/sec on one documented single-core test environment; HTTP receipt-to-enqueue P99 is below 5 ms.
 6. Overload and sink failure preserve service health while distinct drop/error counters explain losses.
 7. UTC invariants, import boundaries, and the IPC conformance suite pass in CI.
-8. M0, M1, M2, M2b, M3, M4, M6, M6b, and M7 are complete. M5 and M8 are not required for v1.
+8. M0, M1, M2, M2b, M3, M4, M6, M6b, M7, and M7b are complete. M5, M7c, and M8 are not required for v1.
 9. Existing OTLP/HTTP logs pass SDK/Collector interoperability and overload/field-preservation checks as part of M7.

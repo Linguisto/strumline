@@ -33,12 +33,11 @@ Code under `strumline/` hot-reloads inside the containers.
 
 ## Branch and PR workflow
 
-- **Never push directly to `main`.** Feature work goes on a branch; CI runs on
-  push to `main`.
+- **Never push directly to `main`.** Feature work goes on a branch.
 - Branch from `main` and keep the change focused — a PR should do one thing.
-- Open a pull request. The `lint.yml` workflow runs ruff, format check, mypy,
-  import-linter, and unit tests on every branch and PR. Integration tests run
-  on `main` only (they need PostgreSQL).
+- Open a pull request. PR gates run ruff, format check, mypy, import-linter,
+  PostgreSQL integration tests, real Collector interoperability, dependency
+  review, and security scans before merge.
 - Keep PR titles under ~70 characters; put detail (what changed, what was
   tested, anything deferred) in the description.
 
@@ -81,8 +80,8 @@ ipc/        → domain/ only
 ingest/     → domain/, ipc/, metrics/, db/ (read-only auth token resolver only)
 processor/  → domain/, ipc/, metrics/, sinks/ (contract + factory, not loki directly)
 control/    → db/, domain/
-cli/        → control/, domain/
-api/        → control/, domain/
+cli/        → control/, domain/; composition root may wire config + DB session factory
+api/        → control/, domain/; server composition root may wire config + DB session factory
 ```
 
 Never add a cross-boundary import. If a new provider needs plumbing, put it

@@ -52,18 +52,19 @@ Two PostgreSQL roles connect to the same database:
 | Role | Variable | Grants | Used by |
 |---|---|---|---|
 | App role | `DB_USER` / `DB_PASSWORD` | Full read-write on all tables | API process, CLI, migrations |
-| Ingest role | `INGEST_DB_USER` / `INGEST_DB_PASSWORD` | `SELECT` on `auth_tokens` and `apps` only | Ingest process (auth token resolver) |
+| Ingest role | `INGEST_DB_USER` / `INGEST_DB_PASSWORD` | `SELECT` on `projects`, `apps`, and `auth_tokens` only | Ingest process (auth token resolver) |
 
-The ingest process **never** receives write-capable credentials. If
-`INGEST_DB_PASSWORD` is empty, the ingest process falls back to the app role —
-this is only acceptable in development. In production, provision the read-only
-role with the bootstrap script:
+The ingest process **never** receives write-capable credentials and refuses to
+start without `INGEST_DB_PASSWORD`. Provision the read-only role after migrations
+with the bootstrap script:
 
 ```bash
 docker compose run --rm strumline-cli python -m strumline.db.bootstrap
 ```
 
-Never grant the ingest role `INSERT`, `UPDATE`, `DELETE`, or `DDL` privileges.
+The password must already be present in the environment. Re-running bootstrap
+verifies grants without changing an existing password; use `--rotate` only for
+deliberate rotation. Never grant the ingest role write or DDL privileges.
 
 ## Payload and frame limits
 
@@ -113,13 +114,14 @@ are caught and discarded before forming the response. The `from exc` cause is
 preserved for internal tracebacks only (not sent to the caller).
 
 Auth token cache misses are logged at `WARNING` with only the exception class
-and a fixed message — no key material.
+and a fixed message — no key material or exception text. Positive and negative
+entries use token hashes, expire after 60 seconds, and are bounded to 10,000.
 
 ## Dependency scanning
 
-Run `uv export --no-dev | pip-audit -` or `trivy image strumline:dev` against
-the built image before each release to check for known CVEs in dependencies
-and the base image.
+CI runs full-history secret scanning plus Trivy source/dependency and production
+image scans. High/critical findings with available fixes block the security
+workflow; exceptions require a narrow documented rationale and owner.
 
-The base image is `python:3.14-slim`. Pin the exact digest in the Dockerfile
-for reproducible production builds.
+The base image digest and build-time uv version are pinned in the Dockerfile.
+Dependabot proposes reviewed Python, Docker, and GitHub Actions updates.

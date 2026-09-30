@@ -89,7 +89,9 @@ The processes are intentionally separated so they can be managed independently, 
 
 The protocol is simple on purpose: a 4-byte big-endian length prefix followed by a UTF-8 JSON body. The envelope carries a version field (`v: 1`) so the protocol can evolve without breaking existing connections. See `docs/ipc-protocol.md` for the full wire format.
 
-The IPC writer in the ingest process reconnects automatically on failure with capped exponential backoff (0.1s base, 30s cap, ±10% jitter). Events already removed from the queue before a failure are lost — this is consistent with best-effort semantics.
+The IPC writer reconnects automatically with capped exponential backoff (0.1s
+base, 30s cap, ±10% jitter). It re-queues a failed write when capacity remains.
+If the queue fills before re-queueing, it discards and counts that event.
 
 ## The processor: batching and sink dispatch
 
@@ -129,7 +131,9 @@ Timestamps are serialised as decimal nanosecond strings (not JSON numbers) becau
 
 ## The control plane
 
-The API process handles Projects, Apps, and auth tokens through the `strumline/control/` service layer. The same services are used by both the CLI and the future admin REST API (M6b), preventing business logic from being duplicated.
+The API process handles Projects, Apps, and auth tokens through the
+`strumline/control/` service layer when `ADMIN_API_ENABLED=true`. The CLI uses
+the same services, preventing business logic from being duplicated.
 
 The two-model split keeps the domain layer clean:
 - `strumline/db/models.py` — SQLAlchemy ORM models, used only inside `strumline/db/`
@@ -163,8 +167,8 @@ processor/  ← domain/, ipc/, metrics/, sinks/ (contract only, never loki direc
     ↑
 sinks/      ← domain/ only
 control/    ← db/, domain/
-cli/        ← control/, domain/
-api/        ← control/, domain/
+cli/        ← control/, domain/; composition root wires config and DB session factory
+api/        ← control/, domain/; server composition root wires config and DB session factory
 ```
 
 `processor` is explicitly forbidden from importing `strumline.sinks.loki`. It may only import the `EventSink` ABC and the two error classes. The `get_sink()` factory in `strumline.sinks` does the concrete import at runtime via `importlib`, keeping the static dependency graph clean.
@@ -175,7 +179,7 @@ api/        ← control/, domain/
 |---|---|---|
 | Ingest queue full | Whole batch rejected with retryable `503`; nothing admitted, nothing dropped | HTTP `503` to caller; `INGEST_QUEUE_DEPTH` gauge |
 | Normalized size rejection | Records exceeding per-frame or cumulative limits permanently rejected via OTLP partial success | `ingest_events_dropped_total{reason="otlp_normalized_size"}` |
-| IPC write failure | Events already removed from queue before reconnect are lost | Logged; no counter in v1 |
+| IPC write failure | Failed event cannot be re-queued because ingest queue filled | `ingest_events_dropped_total{reason="ipc_write_failure"}` |
 | Processor queue full | UDS server drops the frame | `processor_events_dropped_total{reason="queue_full"}` |
 | Permanent sink error | Batch discarded immediately | `processor_events_dropped_total{reason="sink_permanent"}` |
 | Sink retries exhausted | Batch discarded after N attempts | `processor_events_dropped_total{reason="sink_retries_exhausted"}` |
@@ -185,7 +189,8 @@ Queue saturation at the ingest boundary is retryable and not counted as a drop b
 ## What Strumline deliberately does not do
 
 - **No durability.** There is no WAL, no replay, no dead-letter store. Dropped events are gone.
-- **No backpressure to callers.** The HTTP layer always returns promptly. Overload signals are metrics, not errors.
+- **Bounded caller backpressure.** The HTTP layer returns promptly; an atomic
+  `503` refuses a batch that cannot fit instead of waiting for capacity.
 - **No per-app sink routing.** All apps go to the same sink. Multi-sink fan-out is deferred.
 - **No event deduplication.** The `id` field is present for downstream use, but Strumline itself does not deduplicate on retry.
 - **No raw telemetry in PostgreSQL.** The database stores metadata only (Projects, Apps, auth tokens). Events flow ingest → IPC → processor → sink and never touch the database.

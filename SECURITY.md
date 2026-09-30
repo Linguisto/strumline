@@ -9,12 +9,14 @@ database grants, payload limits, redaction, socket permissions), see
 ## Supported versions
 
 Strumline follows semantic versioning. Security fixes are applied to the latest
-`1.x` release. Pre-1.0 tags are not supported.
+`1.x` release. Before v1.0, reports against `main` are accepted on a best-effort
+basis, but no pre-release tag has a supported maintenance window.
 
 | Version | Supported |
 |---|---|
 | `1.x` (latest) | ✅ |
-| `< 1.0` | ❌ |
+| `main` before v1.0 | Best effort |
+| `< 1.0` tags | ❌ |
 
 ## Reporting a vulnerability
 
@@ -27,9 +29,9 @@ Report privately through GitHub's coordinated disclosure workflow:
 2. Describe the issue, the affected version or commit, and a reproduction if you
    have one.
 
-If private reporting is unavailable to you, contact the maintainer through the
-GitHub profile at https://github.com/Linguisto and ask for a private channel
-before sharing any details.
+If private reporting is unavailable, open a public issue containing no
+vulnerability details and ask the maintainer for a private channel. Do not name
+affected components, include reproduction steps, or attach evidence publicly.
 
 Please include, where possible:
 
@@ -53,9 +55,11 @@ image — authentication and token handling, the read-only ingest role boundary,
 IPC framing, payload/frame limits, decompression handling, admin API gating,
 metrics exposure, and log redaction.
 
-Out of scope: vulnerabilities in third-party dependencies (report those
-upstream; we will bump the pin once a fix is available), issues that require a
-misconfigured deployment already called out as an operator responsibility in
+Reports about vulnerabilities in Strumline's shipped dependencies or container
+base image are in scope when they affect the shipped product. We may coordinate
+the underlying fix upstream, then publish a patched Strumline image or pin.
+
+Out of scope: issues that require a misconfigured deployment already called out as an operator responsibility in
 [`docs/security.md`](docs/security.md) (for example, exposing `/metrics` or the
 admin API to an untrusted network), and best-effort delivery semantics
 (accepted records may be lost on failure — this is documented behavior, not a

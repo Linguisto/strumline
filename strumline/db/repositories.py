@@ -16,21 +16,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from strumline.db.models import AppModel, AuthTokenModel, ProjectModel
-from strumline.domain.entities import App, AuthToken, Project
+from strumline.domain.entities import UNSET, App, AuthToken, Project
 from strumline.domain.errors import (
     AlreadyRevokedError,
     ConflictError,
     NotFoundError,
 )
-
-
-# Sentinel — distinguishes "not passed" from None (which clears the timezone)
-class _Unset:
-    pass
-
-
-UNSET: Any = _Unset()
-
 
 # ---------------------------------------------------------------------------
 # Mapping helpers
@@ -193,7 +184,7 @@ class AppRepository:
             raise NotFoundError("App", str(app_id))
         if name is not None:
             model.name = name
-        if not isinstance(tz, _Unset):
+        if tz is not UNSET:
             model.timezone = tz
         model.updated_at = datetime.now(tz=UTC)
         await self._s.flush()
