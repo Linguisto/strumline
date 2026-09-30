@@ -323,7 +323,9 @@ async def test_real_sdk_http_exporter():
         def emit():
             provider = LoggerProvider(resource=Resource.create({"service.name": "sdk-example"}))
             exporter = OTLPLogExporter(
-                endpoint=endpoint, headers=_TOKEN, compression=Compression.Gzip
+                endpoint=endpoint,
+                headers=_TOKEN,
+                compression=Compression.Gzip,  # gitleaks:allow
             )
             provider.add_log_record_processor(SimpleLogRecordProcessor(exporter))
             try:
