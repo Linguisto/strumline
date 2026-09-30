@@ -66,10 +66,22 @@ counts into the results artifact automatically.
 
 ## Running it
 
+The simplest path is the Make target, which runs the harness in the dev
+container and writes to the untracked `benchmarks/runs/` scratch directory so
+the committed baseline stays stable:
+
+```bash
+make benchmarks                 # writes benchmarks/runs/ (safe default)
+make benchmarks DC_EXEC="uv run"  # run locally instead of in the container
+```
+
+Run the harness directly for custom parameters (requires a local `uv`
+environment, or prefix with `docker compose run --rm strumline-cli`):
+
 ```bash
 # Defaults: 5,000 serial latency requests, 20,000 concurrent throughput events,
-# concurrency 32, 2,000 warm-up requests. Writes benchmarks/results/.
-uv run python benchmarks/receipt_to_enqueue.py
+# concurrency 32, 2,000 warm-up requests.
+uv run python benchmarks/receipt_to_enqueue.py --out benchmarks/runs
 
 # Custom run
 uv run python benchmarks/receipt_to_enqueue.py \
@@ -78,20 +90,20 @@ uv run python benchmarks/receipt_to_enqueue.py \
     --concurrency 32 \
     --warmup 2000 \
     --records-per-request 1 \
-    --out benchmarks/results
+    --out benchmarks/runs
 
-# Print only, do not write artifacts
+# Print only, do not write artifacts (use this for validation runs)
 uv run python benchmarks/receipt_to_enqueue.py --no-write
 ```
 
 The process exits `0` only when **both** targets pass, so the harness doubles as
 a smoke gate. It exits `1` when a target is missed and `2` on invalid arguments.
 
-For ad-hoc or experimental runs, write to the untracked scratch directory so the
-committed baseline stays stable:
+Only refresh the committed `benchmarks/results/` baseline deliberately, when you
+intend to publish new numbers:
 
 ```bash
-uv run python benchmarks/receipt_to_enqueue.py --out benchmarks/runs
+make benchmarks.baseline        # writes benchmarks/results/ (the committed baseline)
 ```
 
 `benchmarks/runs/` is git-ignored. Only overwrite `benchmarks/results/` (the
