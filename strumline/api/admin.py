@@ -40,7 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from strumline.control.apps import AppService
 from strumline.control.auth_tokens import AuthTokenService
 from strumline.control.projects import ProjectService
-from strumline.db.repositories import UNSET
+from strumline.domain.entities import UNSET
 from strumline.domain.errors import StrumlineError
 
 # ---------------------------------------------------------------------------

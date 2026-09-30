@@ -1,0 +1,17 @@
+services:
+  api:
+    command: ["uvicorn", "strumline.api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes: !reset []
+
+  ingest:
+    command: ["uvicorn", "strumline.ingest.server:app", "--host", "0.0.0.0", "--port", "8001"]
+    volumes: !override
+      - ipc-socket:/var/run/strumline
+
+  processor:
+    command: ["strumline-processor"]
+    volumes: !override
+      - ipc-socket:/var/run/strumline
+
+  strumline-cli:
+    volumes: !reset []

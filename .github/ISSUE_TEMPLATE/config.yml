@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/Linguisto/strumline/security/advisories/new
+    about: Report vulnerabilities privately.
+  - name: Support question
+    url: https://github.com/Linguisto/strumline/discussions
+    about: Ask deployment and usage questions without secrets or private telemetry.
