@@ -9,8 +9,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from strumline.db.repositories import UNSET, AppRepository, ProjectRepository
-from strumline.domain.entities import App
+from strumline.db.repositories import AppRepository, ProjectRepository
+from strumline.domain.entities import UNSET, App
 from strumline.domain.errors import OwnershipError, ValidationError
 
 
@@ -69,7 +69,7 @@ class AppService:
         name: str | None = None,
         tz: Any = UNSET,
     ) -> App:
-        if not isinstance(tz, type(UNSET)) and tz is not None:
+        if tz is not UNSET and tz is not None:
             _validate_tz(tz)
         app = await self.get(project_slug_or_id, app_slug_or_id)
         return await self._repo.update(app.id, name=name, tz=tz)

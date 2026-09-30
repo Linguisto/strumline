@@ -16,6 +16,10 @@ import os
 
 import pytest
 
+# Importing the ingest ASGI entry point validates that a restricted credential
+# exists. Tests inject their own session factories and never use this value.
+os.environ.setdefault("INGEST_DB_PASSWORD", "test-read-only-password")
+
 _HOST = os.environ.get("TESTING_DB_HOST", os.environ.get("DB_HOST", "localhost"))
 _PORT = os.environ.get("TESTING_DB_PORT", os.environ.get("DB_PORT", "5432"))
 _USER = os.environ.get("TESTING_DB_USER", os.environ.get("DB_USER", "strumline"))

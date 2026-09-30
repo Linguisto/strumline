@@ -1,7 +1,7 @@
 # M7b — Release Preparation and Public OSS Readiness
 
 **Type:** Pre-v1 release gate  
-**Status:** Planned  
+**Status:** Implemented — owner settings and publication pending
 **Depends on:** M7 and the existing OTLP/HTTP logs implementation  
 **Unlocks:** Public repository opening and v1.0 release  
 **Goal:** Close the deployment, security, release-validation, and contributor
@@ -309,35 +309,64 @@ under five minutes.
   practical. A failed final run blocks release readiness; fix the cause and
   rerun against the final candidate. Clean up only smoke-test-owned resources.
 
+## Implementation evidence — 2026-09-30
+
+- `make lint`: ruff, format, strict mypy, and all 10 import-linter contracts
+  passed.
+- `make test.unit`: 164 passed; Docker `make test`: 195 passed with only the
+  two opt-in Collector cases skipped. Those two cases then passed separately
+  against the checksum-verified Collector 0.162.0 binary for JSON and Protobuf.
+- The restricted-role integration fixture resolves active tokens and proves
+  writes and DDL are denied. The restored development stack also confirmed that
+  ingest receives no application DB username/password and that the processor
+  owns a live Unix socket.
+- The final production candidate reports 1.0.0 from the CLI and all OpenAPI
+  documents. Its wheel and image contain the license and third-party notices.
+  Both linux/amd64 and linux/arm64 runtime targets compiled successfully in an
+  isolated BuildKit builder without publishing artifacts.
+- Gitleaks 8.28.0 scanned all 18 reachable commits with no unhandled findings.
+  One exact test-only false-positive fingerprint and its rationale are recorded
+  in `.gitleaksignore` and `docs/release-checklist.md`.
+- Trivy 0.69.3 found no HIGH or CRITICAL fixed vulnerabilities in the locked
+  filesystem dependencies or final production image after runtime security
+  updates. No broad scanner exception was added.
+- The isolated fresh-volume release-candidate walkthrough completed resource
+  creation, real HTTP ingest, IPC processing, and exact-marker Loki observation
+  in 5 seconds. The smoke project removed only its own resources afterward.
+- GitHub repository protections, private-reporting availability, Discussions,
+  notification monitoring, and GHCR public visibility remain explicit owner
+  actions in `docs/release-checklist.md`; no repository visibility, tag, release,
+  or package was changed.
+
 ## Acceptance criteria
 
 ### Before public repository opening
 
-- [ ] Full-history secret scan completed and findings resolved or explicitly handed off.
-- [ ] License/provenance review completed for repository and distributed material.
+- [x] Full-history secret scan completed and findings resolved or explicitly handed off.
+- [x] License/provenance review completed for repository and distributed material.
 - [ ] SECURITY policy is included with a verified private reporting path and usable fallback.
 - [ ] CoC enforcement contact, issue/PR templates, and support routing are usable.
-- [ ] GitHub protections/security settings are verified or listed as outstanding owner actions.
-- [ ] Public docs describe current capabilities and limitations accurately.
+- [x] GitHub protections/security settings are verified or listed as outstanding owner actions.
+- [x] Public docs describe current capabilities and limitations accurately.
 
 ### Before v1.0 publication
 
-- [ ] Restricted-role token resolution succeeds and write/DDL denials are tested.
-- [ ] Ingest never receives or falls back to application write credentials.
-- [ ] Authentication cache stays bounded and expiry/revocation/outage behavior is verified.
-- [ ] Resolver logs meet the documented redaction guarantee.
-- [ ] An isolated fresh Compose walkthrough reaches a queryable Loki event.
-- [ ] Final smoke test creates resources, ingests over HTTP, and observes the correctly routed event in Loki within five minutes, with sanitized evidence.
-- [ ] Integration tests run before merge and release checks validate the exact tagged commit.
-- [ ] Collector JSON/Protobuf interoperability runs in release validation without skips.
-- [ ] Stable/prerelease tags and version mismatch are handled before publication.
-- [ ] Production image smoke tests and advertised architectures pass.
-- [ ] Package, CLI, health/OpenAPI, and release versions agree.
-- [ ] Dependency/image scans pass the documented policy; exceptions have rationale and owners.
-- [ ] Release artifacts, changelog, deployment, upgrade, backup/restore, and rollback guidance exist.
-- [ ] Documented import boundaries are enforced and performance claims match evidence.
-- [ ] `make lint`, `make test.unit`, and Docker `make test` pass on the final checkout.
-- [ ] README/roadmap include M7b and keep M5/M8 outside v1 requirements.
+- [x] Restricted-role token resolution succeeds and write/DDL denials are tested.
+- [x] Ingest never receives or falls back to application write credentials.
+- [x] Authentication cache stays bounded and expiry/revocation/outage behavior is verified.
+- [x] Resolver logs meet the documented redaction guarantee.
+- [x] An isolated fresh Compose walkthrough reaches a queryable Loki event.
+- [x] Final smoke test creates resources, ingests over HTTP, and observes the correctly routed event in Loki within five minutes, with sanitized evidence.
+- [x] Integration tests run before merge and release checks validate the exact tagged commit.
+- [x] Collector JSON/Protobuf interoperability runs in release validation without skips.
+- [x] Stable/prerelease tags and version mismatch are handled before publication.
+- [x] Production image smoke tests and advertised architectures pass.
+- [x] Package, CLI, health/OpenAPI, and release versions agree.
+- [x] Dependency/image scans pass the documented policy; exceptions have rationale and owners.
+- [x] Release artifacts, changelog, deployment, upgrade, backup/restore, and rollback guidance exist.
+- [x] Documented import boundaries are enforced and performance claims match evidence.
+- [x] `make lint`, `make test.unit`, and Docker `make test` pass on the final checkout.
+- [x] README/roadmap include M7b and keep M5/M8 outside v1 requirements.
 - [ ] Final handoff distinguishes verified repository work from owner settings and publishing actions.
 
 Do not claim public-launch or v1 readiness while applicable checklist items are

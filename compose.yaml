@@ -8,10 +8,13 @@ name: strumline
 # CLI:      docker compose run --rm strumline-cli strumline <command>
 # ---------------------------------------------------------------------------
 
-x-db-env: &db-env
+x-db-location-env: &db-location-env
   DB_HOST: "${DB_HOST:-postgres}"
   DB_PORT: "${DB_PORT:-5432}"
   DB_NAME: "${DB_NAME:-strumline}"
+
+x-db-env: &db-env
+  <<: *db-location-env
   DB_USER: "${DB_USER:-strumline}"
   DB_PASSWORD: "${DB_PASSWORD:-strumline}"
 
@@ -55,7 +58,7 @@ services:
     environment:
       <<: [ *common-env, *db-env, *api-env ]
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./strumline:/app/strumline:ro
     depends_on:
@@ -88,9 +91,9 @@ services:
       --host 0.0.0.0 --port 8001
       --reload --reload-dir /app/strumline
     environment:
-      <<: [ *common-env, *db-env, *ingest-db-env ]
+      <<: [ *common-env, *db-location-env, *ingest-db-env ]
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     volumes:
       - ipc-socket:/var/run/strumline
       - ./strumline:/app/strumline:ro
@@ -115,12 +118,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: ${STRUMLINE_TARGET:-dev}
-    command: >
-      uvicorn strumline.processor.server:app
-      --host 0.0.0.0 --port 8002
-      --reload --reload-dir /app/strumline
+    command: strumline-processor
     environment:
-      <<: [ *common-env, *db-env, *sink-env ]
+      <<: [ *common-env, *sink-env ]
     ports:
       - "127.0.0.1:8002:8002"
     volumes:
@@ -151,7 +151,7 @@ services:
     profiles:
       - cli
     environment:
-      <<: [ *common-env, *db-env ]
+      <<: [ *common-env, *db-env, *ingest-db-env ]
     volumes:
       - ./strumline:/app/strumline:ro
     depends_on:
@@ -185,7 +185,7 @@ services:
     image: grafana/loki:3.7.8
     command: [ "-config.file=/etc/loki/local-config.yaml" ]
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - loki-data:/loki
     healthcheck:
@@ -206,7 +206,7 @@ services:
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -215,7 +215,7 @@ services:
   grafana:
     image: grafana/grafana:13.2.2
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"

@@ -15,6 +15,7 @@ import pytest
 from httpx2 import ASGITransport, AsyncClient
 
 from strumline.api.server import create_app as create_api_app
+from strumline.config import DatabaseSettings
 from strumline.ingest.server import create_app as create_ingest_app
 from strumline.processor.server import create_app as create_processor_app
 
@@ -77,3 +78,10 @@ async def test_health_version_not_hardcoded(expected_version: str) -> None:
     if expected_version != "unknown":
         parts = expected_version.split(".")
         assert len(parts) >= 2, f"Expected semver, got {expected_version!r}"
+
+
+def test_ingest_database_password_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("INGEST_DB_PASSWORD", "")
+    settings = DatabaseSettings()
+    with pytest.raises(ValueError, match="INGEST_DB_PASSWORD"):
+        _ = settings.ingest_database_url

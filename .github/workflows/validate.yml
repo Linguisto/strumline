@@ -1,18 +1,14 @@
-name: Pull request gates
+name: Reusable validation
 
 on:
-  pull_request:
+  workflow_call:
 
 permissions:
   contents: read
 
-env:
-  INGEST_DB_PASSWORD: ci-read-only-placeholder
-  OTELCOL_VERSION: "0.162.0"
-
 jobs:
-  lint-and-test:
-    name: Lint and full test suite
+  validate:
+    name: Exact commit validation
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -28,6 +24,9 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+    env:
+      INGEST_DB_PASSWORD: ci-read-only-placeholder
+      OTELCOL_VERSION: "0.162.0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
@@ -48,20 +47,22 @@ jobs:
           mkdir -p "$RUNNER_TEMP/otelcol"
           tar -xzf "$archive" -C "$RUNNER_TEMP/otelcol" otelcol-contrib
           echo "OTELCOL_BINARY=$RUNNER_TEMP/otelcol/otelcol-contrib" >> "$GITHUB_ENV"
-      - name: Lint, format, types, and boundaries
-        run: make lint DC_EXEC="uv run"
-      - name: Full test suite
-        run: uv run pytest --tb=short
+      - run: make lint DC_EXEC="uv run"
+      - run: uv run pytest --tb=short
         env:
           DB_HOST: localhost
           DB_PORT: "5432"
           DB_NAME: strumline
           DB_USER: strumline
           DB_PASSWORD: strumline
-
-  dependency-review:
-    name: Dependency review
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/dependency-review-action@99012661954931238ded8c8b007157a8430204e1 # v4
+      - name: Build and smoke-test production image
+        run: |
+          docker build --target runtime --tag strumline:release-candidate --file docker/Dockerfile .
+          docker run --rm strumline:release-candidate strumline --version
+      - name: End-to-end release smoke test
+        run: |
+          smoke_env="$RUNNER_TEMP/release-smoke.env"
+          cp .env.example "$smoke_env"
+          sed -i "s/^APP_KEY=$/APP_KEY=$(openssl rand -hex 32)/" "$smoke_env"
+          sed -i "s/^INGEST_DB_PASSWORD=$/INGEST_DB_PASSWORD=$(openssl rand -hex 32)/" "$smoke_env"
+          SMOKE_ENV_FILE="$smoke_env" scripts/release-smoke.sh

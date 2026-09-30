@@ -62,9 +62,11 @@ class DatabaseSettings(_Base):
 
     @property
     def ingest_database_url(self) -> str:
-        """Empty string if the ingest role has not been bootstrapped yet."""
+        """Build the mandatory read-only ingest connection URL."""
         if not self.ingest_db_password:
-            return ""
+            raise ValueError(
+                "INGEST_DB_PASSWORD must be set; ingest cannot use application DB credentials"
+            )
         return (
             f"postgresql+asyncpg://{self.ingest_db_user}:{self.ingest_db_password}"
             f"@{self.db_host}:{self.db_port}/{self.db_name}"

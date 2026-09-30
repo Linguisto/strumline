@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help build build.dev up down init bash lint test test.unit test.integration migrate benchmarks
+.PHONY: help build build.dev up down init bootstrap bootstrap.rotate bash lint test test.unit test.integration migrate benchmarks
 
 IMAGE_TAG ?= dev
 
@@ -29,8 +29,10 @@ build.dev: ## Build the dev image (includes pytest, ruff, mypy)
 up: ## Build dev image, start stack, run migrations
 	@$(MAKE) init
 	@$(MAKE) build.dev
-	STRUMLINE_IMAGE_TAG=$(IMAGE_TAG) docker compose up -d --force-recreate
+	STRUMLINE_IMAGE_TAG=$(IMAGE_TAG) docker compose up -d postgres
 	@$(MAKE) migrate
+	@$(MAKE) bootstrap
+	STRUMLINE_IMAGE_TAG=$(IMAGE_TAG) docker compose up -d --force-recreate
 
 down: ## Stop and remove containers (keeps volumes)
 	docker compose down
@@ -40,8 +42,20 @@ init:
 		cp .env.example .env; \
 		echo "✓ Created .env from .env.example"; \
 	fi
-	@perl -i -pe 's/^APP_KEY=$$/sprintf "APP_KEY=%s", unpack("H*", do { open my $$f, "<", "\/dev\/urandom" or die; read $$f, my $$b, 32; $$b })/e' .env \
-		&& echo "✓ Generated APP_KEY" || true
+	@if grep -q '^APP_KEY=$$' .env; then \
+		perl -i -pe 's/^APP_KEY=$$/sprintf "APP_KEY=%s", unpack("H*", do { open my $$f, "<", "\/dev\/urandom" or die; read $$f, my $$b, 32; $$b })/e' .env; \
+		echo "✓ Generated APP_KEY"; \
+	fi
+	@if grep -Eq '^INGEST_DB_PASSWORD=$$|^INGEST_DB_PASSWORD=changeme$$' .env; then \
+		perl -i -pe 's/^INGEST_DB_PASSWORD=(?:|changeme)$$/sprintf "INGEST_DB_PASSWORD=%s", unpack("H*", do { open my $$f, "<", "\/dev\/urandom" or die; read $$f, my $$b, 32; $$b })/e' .env; \
+		echo "✓ Generated INGEST_DB_PASSWORD"; \
+	fi
+
+bootstrap: ## Provision the read-only ingest database role
+	$(DC_EXEC) python -m strumline.db.bootstrap
+
+bootstrap.rotate: ## Rotate the ingest role to the password currently in .env
+	$(DC_EXEC) python -m strumline.db.bootstrap --rotate
 
 bash: ## Open a shell in a disposable CLI container
 	docker compose run --rm strumline-cli bash

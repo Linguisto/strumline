@@ -7,20 +7,77 @@ failure outage policy.
 
 from __future__ import annotations
 
+import secrets
+import uuid
+from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
+import psycopg2
 import pytest
+from psycopg2 import sql
+from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+import tests.conftest as conf
 from strumline.control.apps import AppService
 from strumline.control.auth_tokens import AuthTokenService
 from strumline.control.projects import ProjectService
+from strumline.db.session import make_session_factory
 from strumline.ingest.resolver import (
+    AUTH_TOKEN_CACHE_MAX_ENTRIES,
     AUTH_TOKEN_CACHE_TTL,
     AuthTokenResolver,
     AuthTokenResolverError,
 )
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture
+async def restricted_factory(
+    _db_boot: None,
+) -> AsyncGenerator[async_sessionmaker[AsyncSession]]:
+    """Create an isolated role matching the production ingest grants."""
+    role = f"strumline_ingest_test_{uuid.uuid4().hex[:12]}"
+    password = secrets.token_urlsafe(24)
+    conn = psycopg2.connect(
+        host=conf._HOST,
+        port=conf._PORT,
+        user=conf._USER,
+        password=conf._PASSWORD,
+        dbname=conf._DB,
+    )
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL("CREATE ROLE {} LOGIN PASSWORD %s").format(sql.Identifier(role)),
+            (password,),
+        )
+        cur.execute(
+            sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
+                sql.Identifier(conf._DB), sql.Identifier(role)
+            )
+        )
+        cur.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(sql.Identifier(role)))
+        cur.execute(sql.SQL("REVOKE CREATE ON SCHEMA public FROM {}").format(sql.Identifier(role)))
+        for table in ("auth_tokens", "apps", "projects"):
+            cur.execute(
+                sql.SQL("GRANT SELECT ON {} TO {}").format(
+                    sql.Identifier(table), sql.Identifier(role)
+                )
+            )
+
+    factory = make_session_factory(
+        f"postgresql+asyncpg://{role}:{password}@{conf._HOST}:{conf._PORT}/{conf._DB}"
+    )
+    try:
+        yield factory
+    finally:
+        with conn.cursor() as cur:
+            cur.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(role)))
+            cur.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(role)))
+        conn.close()
 
 
 @pytest.fixture
@@ -61,6 +118,25 @@ async def test_resolve_active_token(resolver_factory, project_app_token):
     assert result.app_slug == app.slug
     assert result.project_id == str(project.id)
     assert result.project_slug == project.slug
+
+
+@pytest.mark.asyncio
+async def test_restricted_role_resolves_token(restricted_factory, project_app_token):
+    project, app, token, raw_key = project_app_token
+    result = await AuthTokenResolver(restricted_factory).resolve(raw_key)
+    assert result.token_id == str(token.id)
+    assert result.app_id == str(app.id)
+    assert result.project_id == str(project.id)
+
+
+@pytest.mark.asyncio
+async def test_restricted_role_cannot_write_or_create(restricted_factory):
+    async with restricted_factory() as session:
+        with pytest.raises(ProgrammingError, match="permission denied"):
+            await session.execute(text("DELETE FROM auth_tokens"))
+        await session.rollback()
+        with pytest.raises(ProgrammingError, match="permission denied"):
+            await session.execute(text("CREATE TABLE ingest_must_not_create (id integer)"))
 
 
 # ---------------------------------------------------------------------------
@@ -180,3 +256,43 @@ async def test_db_failure_serves_stale_cache(migrated_factory, project_app_token
         result2 = await resolver.resolve(raw_key)
 
     assert result1.token_id == result2.token_id
+
+
+@pytest.mark.asyncio
+async def test_cache_is_bounded_and_does_not_store_raw_keys(migrated_factory):
+    resolver = AuthTokenResolver(migrated_factory, ttl=60, max_entries=3)
+
+    for index in range(5):
+        with pytest.raises(AuthTokenResolverError):
+            await resolver.resolve(f"unknown-secret-{index}")
+
+    assert len(resolver._cache) == 3
+    assert all("unknown-secret" not in cache_key for cache_key in resolver._cache)
+
+
+def test_cache_capacity_must_be_positive(migrated_factory):
+    with pytest.raises(ValueError, match="max_entries"):
+        AuthTokenResolver(migrated_factory, max_entries=0)
+
+
+def test_default_cache_capacity_is_bounded(migrated_factory):
+    resolver = AuthTokenResolver(migrated_factory)
+    assert resolver._max_entries == AUTH_TOKEN_CACHE_MAX_ENTRIES
+
+
+@pytest.mark.asyncio
+async def test_db_failure_log_redacts_exception_message(migrated_factory, caplog):
+    resolver = AuthTokenResolver(migrated_factory)
+
+    async def failing_query(key_hash: str):
+        raise RuntimeError("password=should-never-appear")
+
+    with (
+        patch.object(resolver, "_query", side_effect=failing_query),
+        pytest.raises(AuthTokenResolverError),
+    ):
+        await resolver.resolve("raw-token")
+
+    assert "RuntimeError" in caplog.text
+    assert "should-never-appear" not in caplog.text
+    assert "raw-token" not in caplog.text
