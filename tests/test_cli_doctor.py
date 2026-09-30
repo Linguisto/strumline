@@ -94,3 +94,99 @@ def test_doctor_multiple_failures() -> None:
     data = json.loads(result.output)
     failed = [r for r in data if r["status"] == _FAIL]
     assert len(failed) == 2
+
+
+# ---------------------------------------------------------------------------
+# M7c-C — actionable next steps, config reporting, and redaction
+# ---------------------------------------------------------------------------
+
+
+def test_doctor_failed_check_includes_next_step() -> None:
+    """A failing required check carries an actionable next_step field."""
+    from strumline.cli.doctor import _check_result
+
+    row = _check_result("postgres", _FAIL, "OperationalError")
+    assert row["next_step"]  # non-empty guidance
+    assert "PostgreSQL" in row["next_step"] or "DB_HOST" in row["next_step"]
+
+    with patch("strumline.cli.doctor._run_checks", new=AsyncMock(return_value=[row])):
+        result = runner.invoke(app, ["doctor", "--json"])
+    assert result.exit_code == 1
+    data = json.loads(result.output)
+    assert data[0]["next_step"]
+
+
+def test_doctor_redacts_connection_errors() -> None:
+    """A DB failure surfaces the exception type only — never a DSN/password."""
+    from strumline.cli.doctor import _check_postgres
+
+    def _boom_factory(*_a: object, **_k: object) -> object:
+        raise RuntimeError("connect failed: postgresql://u:sup3rsecret@db:5432/x")
+
+    # _check_postgres imports make_session_factory from strumline.db.session.
+    with patch("strumline.db.session.make_session_factory", side_effect=_boom_factory):
+        import asyncio as _aio
+
+        row = _aio.run(_check_postgres())
+
+    assert row["status"] == _FAIL
+    assert "sup3rsecret" not in row["detail"]
+    assert "postgresql://" not in row["detail"]
+    assert row["detail"] == "RuntimeError"
+
+
+def test_doctor_reports_invalid_configuration() -> None:
+    """Invalid settings produce an explicit failing 'config' row, not silent defaults."""
+    import strumline.config as cfg
+
+    def _raise(self: object, *a: object, **k: object) -> None:
+        raise ValueError("API_PORT must be 1-65535, got 999999")
+
+    with (
+        patch.object(cfg.APISettings, "__init__", _raise),
+        patch(
+            "strumline.cli.doctor._check_http",
+            new=AsyncMock(
+                return_value={
+                    "service": "api",
+                    "status": _FAIL,
+                    "detail": "x",
+                    "next_step": "y",
+                }
+            ),
+        ),
+        patch(
+            "strumline.cli.doctor._check_postgres",
+            new=AsyncMock(
+                return_value={
+                    "service": "postgres",
+                    "status": _FAIL,
+                    "detail": "x",
+                    "next_step": "y",
+                }
+            ),
+        ),
+        patch(
+            "strumline.cli.doctor._check_migrations",
+            new=AsyncMock(
+                return_value={
+                    "service": "migrations",
+                    "status": _FAIL,
+                    "detail": "x",
+                    "next_step": "y",
+                }
+            ),
+        ),
+    ):
+        import asyncio as _aio
+
+        from strumline.cli.doctor import _run_checks
+
+        results = _aio.run(_run_checks())
+
+    config_rows = [r for r in results if r["service"] == "config"]
+    assert len(config_rows) == 1
+    assert config_rows[0]["status"] == _FAIL
+    assert config_rows[0]["next_step"]
+    # Exception type only — no raw config values leaked.
+    assert config_rows[0]["detail"] == "ValueError"

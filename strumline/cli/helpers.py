@@ -30,7 +30,12 @@ from rich.table import Table
 
 from strumline.config import DatabaseSettings
 from strumline.db.session import make_session_factory
-from strumline.domain.errors import StrumlineError
+from strumline.domain.errors import StrumlineError, ValidationError
+
+# Exit code for operational failures (DB unreachable, misconfiguration) that are
+# not domain errors. Mirrors sysexits.h EX_UNAVAILABLE so scripts can tell a
+# connectivity/config problem apart from a domain error (exit codes 2/4/9).
+EXIT_UNAVAILABLE: int = 69
 
 # ---------------------------------------------------------------------------
 # Shared option defaults — import and use in commands
@@ -84,11 +89,60 @@ def prompt_name_and_slug() -> tuple[str, str]:
     return name, slug
 
 
-def prompt_select(message: str, choices: list[str]) -> str:
-    """Show an interactive selection menu. Falls back to a plain prompt if not a TTY."""
+def _is_interactive() -> bool:
+    """True only when stdin is an interactive terminal.
+
+    Noninteractive callers (scripts, CI, closed stdin) must never be blocked on
+    a prompt; they should get actionable usage guidance instead.
+    """
     import os
 
-    if not os.isatty(0) or not choices:
+    return os.isatty(0)
+
+
+def require_arg(value: str | None, field: str, *, example: str) -> str:
+    """Return *value*, or raise an actionable error when missing noninteractively.
+
+    Interactive terminals still prompt; scripts fail fast on stderr with the
+    documented validation exit code rather than hanging on a prompt or emitting
+    prompt text to stdout.
+    """
+    if value:
+        return value
+    if _is_interactive():
+        prompted: str = typer.prompt(field.capitalize())
+        return prompted
+    raise ValidationError(
+        field,
+        f"required in non-interactive use — pass it explicitly, e.g. {example}",
+    )
+
+
+def confirm_destructive(question: str) -> None:
+    """Confirm a destructive action, requiring explicit intent.
+
+    On a TTY, prompt and abort if declined. Without a TTY, a missing ``--yes``
+    is not consent: fail with actionable guidance instead of proceeding or
+    hanging on a prompt.
+    """
+    if _is_interactive():
+        typer.confirm(question, abort=True)
+        return
+    raise ValidationError(
+        "confirmation",
+        "destructive action requires explicit confirmation — pass --yes in non-interactive use",
+    )
+
+
+def prompt_select(message: str, choices: list[str]) -> str:
+    """Show an interactive selection menu. Fails fast when not a TTY."""
+    if not _is_interactive():
+        raise ValidationError(
+            message,
+            "required in non-interactive use — pass the value explicitly instead of "
+            "relying on the interactive picker",
+        )
+    if not choices:
         result2: str = typer.prompt(message)
         return result2
     import questionary
@@ -214,6 +268,54 @@ def output_one(
 def handle_error(exc: StrumlineError) -> None:
     _err_console.print(f"[red]Error:[/red] {exc}")
     raise typer.Exit(code=exc.exit_code)
+
+
+def parse_uuid(value: str, field: str) -> UUID:
+    """Parse *value* as a UUID, raising a domain ``ValidationError`` on bad input.
+
+    UUID arguments reach the CLI as free-form strings. Parsing them with the
+    bare ``uuid.UUID`` constructor raises ``ValueError``, which escapes the
+    ``StrumlineError`` boundary as a traceback. This funnels malformed input
+    into the documented validation exit code (2) with an actionable message.
+    """
+    try:
+        return UUID(value)
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise ValidationError(field, f"{value!r} is not a valid UUID") from exc
+
+
+def run_command(coro: Coroutine[Any, Any, Any]) -> Any:
+    """Run a CLI coroutine and translate failures into clean, actionable exits.
+
+    Three outcomes:
+
+    * ``StrumlineError`` — an expected user/domain error. Printed to stderr with
+      its documented exit code and no traceback.
+    * Operational failure (database unreachable, invalid configuration) — any
+      other exception raised while running the command. Printed to stderr as an
+      operational error with :data:`EXIT_UNAVAILABLE`, including the exception
+      *type* (never its message, which may embed a connection string) so the
+      failure stays diagnosable without leaking secrets.
+
+    Programming errors are still surfaced (distinct type name on stderr, non-zero
+    exit) rather than being swallowed into empty results elsewhere in the CLI.
+    """
+    try:
+        return run(coro)
+    except StrumlineError as exc:
+        handle_error(exc)
+    except typer.Exit:
+        raise
+    except typer.Abort, KeyboardInterrupt:
+        _err_console.print("[yellow]Aborted.[/yellow]")
+        raise typer.Exit(code=1) from None
+    except Exception as exc:
+        _err_console.print(
+            f"[red]Operational error:[/red] {type(exc).__name__} — "
+            "the command could not reach a dependency or the configuration is invalid. "
+            "Check database connectivity and settings (see 'strumline doctor')."
+        )
+        raise typer.Exit(code=EXIT_UNAVAILABLE) from None
 
 
 # ---------------------------------------------------------------------------
