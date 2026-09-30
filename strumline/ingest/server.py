@@ -73,8 +73,7 @@ def create_app(
     # Publish static capacity once at startup
     INGEST_QUEUE_CAPACITY.set(settings.queue_size)
 
-    ingest_url = db_settings.ingest_database_url
-    factory = make_session_factory(ingest_url if ingest_url else db_settings.database_url)
+    factory = make_session_factory(db_settings.ingest_database_url)
     resolver = AuthTokenResolver(factory, app_key=common_settings.app_key)
 
     @asynccontextmanager

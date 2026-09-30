@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -27,6 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from strumline.db.models import AppModel, AuthTokenModel
+from strumline.domain.entities import hash_key
 
 if TYPE_CHECKING:
     pass
@@ -35,6 +37,7 @@ log = logging.getLogger(__name__)
 
 # Cache TTL in seconds — revoked auth tokens remain valid for up to this period
 AUTH_TOKEN_CACHE_TTL: int = 60
+AUTH_TOKEN_CACHE_MAX_ENTRIES: int = 10_000
 
 
 class AuthTokenResolverError(Exception):
@@ -80,12 +83,30 @@ class AuthTokenResolver:
         factory: async_sessionmaker[AsyncSession],
         ttl: int = AUTH_TOKEN_CACHE_TTL,
         app_key: str = "",
+        max_entries: int = AUTH_TOKEN_CACHE_MAX_ENTRIES,
     ) -> None:
+        if max_entries < 1:
+            raise ValueError("max_entries must be >= 1")
         self._factory = factory
         self._ttl = ttl
         self._app_key = app_key
-        self._cache: dict[str, _CacheEntry] = {}
+        self._max_entries = max_entries
+        self._cache: OrderedDict[str, _CacheEntry] = OrderedDict()
         self._lock = asyncio.Lock()
+
+    def _cache_key(self, key: str) -> str:
+        """Return a non-reversible cache key without retaining the bearer token."""
+        return hash_key(key, self._app_key)
+
+    def _prune(self, now: float) -> None:
+        """Remove expired FIFO entries and enforce the configured capacity."""
+        while self._cache:
+            first_key = next(iter(self._cache))
+            if self._cache[first_key].expires_at > now:
+                break
+            self._cache.popitem(last=False)
+        while len(self._cache) >= self._max_entries:
+            self._cache.popitem(last=False)
 
     async def resolve(self, key: str) -> ResolvedToken:
         """Resolve *key* to routing metadata.
@@ -99,10 +120,12 @@ class AuthTokenResolver:
             cache miss.
         """
         now = time.monotonic()
+        cache_key = self._cache_key(key)
 
         # Fast path: valid cached entry
         async with self._lock:
-            entry = self._cache.get(key)
+            self._prune(now)
+            entry = self._cache.get(cache_key)
             if entry is not None and entry.expires_at > now:
                 if entry.result is None:
                     raise AuthTokenResolverError("Auth token is revoked or unknown (cached)")
@@ -110,33 +133,32 @@ class AuthTokenResolver:
 
         # Slow path: query the database
         try:
-            result = await self._query(key)
+            result = await self._query(cache_key)
         except AuthTokenResolverError:
             # DB returned a definitive negative — cache it
             async with self._lock:
-                self._cache[key] = _CacheEntry(
+                self._prune(time.monotonic())
+                self._cache[cache_key] = _CacheEntry(
                     result=None,
                     expires_at=time.monotonic() + self._ttl,
                 )
             raise
         except Exception as exc:
             # DB failure on a cache miss — fail closed
-            log.warning("Auth token resolver DB error (cache miss): %s", exc)
+            log.warning("Auth token resolver DB error (cache miss): %s", type(exc).__name__)
             raise AuthTokenResolverUnavailable("Resolver unavailable — no cached result") from exc
 
         # Cache the positive result
         async with self._lock:
-            self._cache[key] = _CacheEntry(
+            self._prune(time.monotonic())
+            self._cache[cache_key] = _CacheEntry(
                 result=result,
                 expires_at=time.monotonic() + self._ttl,
             )
         return result
 
-    async def _query(self, key: str) -> ResolvedToken:
-        """Query the database for *key*. Raises ``AuthTokenResolverError`` if invalid."""
-        from strumline.domain.entities import hash_key as _hash_key
-
-        key_hash = _hash_key(key, self._app_key)
+    async def _query(self, key_hash: str) -> ResolvedToken:
+        """Query the database for a token hash. Raise if it is invalid."""
         async with self._factory() as session:
             row = await session.execute(
                 select(AuthTokenModel, AppModel)
@@ -172,7 +194,7 @@ class AuthTokenResolver:
 
     def invalidate(self, key: str) -> None:
         """Remove *key* from the cache (e.g. after a known revocation)."""
-        self._cache.pop(key, None)
+        self._cache.pop(self._cache_key(key), None)
 
     def clear(self) -> None:
         """Clear the entire cache."""

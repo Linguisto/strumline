@@ -4,11 +4,20 @@ build-backend = "hatchling.build"
 
 [project]
 name = "strumline"
-version = "0.1.0"
+version = "1.0.0"
 description = "Non-blocking, lightning-fast structured telemetry collector"
 readme = "README.md"
 requires-python = ">=3.14"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+authors = [{ name = "Linguisto" }]
+keywords = ["opentelemetry", "otlp", "logging", "telemetry", "loki"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Logging",
+]
 dependencies = [
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.53.0",
@@ -31,6 +40,12 @@ dependencies = [
     "psycopg2-binary>=2.9.13",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Linguisto/telemetria"
+Repository = "https://github.com/Linguisto/telemetria"
+Issues = "https://github.com/Linguisto/telemetria/issues"
+Changelog = "https://github.com/Linguisto/telemetria/releases"
+
 [project.scripts]
 strumline = "strumline.cli.main:app"
 strumline-api = "strumline.api.server:main"
@@ -49,6 +64,9 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["strumline"]
+
+[tool.hatch.build]
+include = ["strumline/**", "LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 [tool.ruff]
 target-version = "py314"
@@ -108,4 +126,101 @@ type = "forbidden"
 source_modules = ["strumline.processor"]
 forbidden_modules = [
     "strumline.sinks.loki",
+]
+
+[[tool.importlinter.contracts]]
+name = "ipc imports only domain code"
+type = "forbidden"
+source_modules = ["strumline.ipc"]
+forbidden_modules = [
+    "strumline.api",
+    "strumline.cli",
+    "strumline.config",
+    "strumline.control",
+    "strumline.db",
+    "strumline.ingest",
+    "strumline.logging_config",
+    "strumline.metrics",
+    "strumline.processor",
+    "strumline.sinks",
+]
+
+[[tool.importlinter.contracts]]
+name = "ingest does not depend on control plane or processor"
+type = "forbidden"
+source_modules = ["strumline.ingest"]
+forbidden_modules = [
+    "strumline.api",
+    "strumline.cli",
+    "strumline.control",
+    "strumline.processor",
+    "strumline.sinks",
+]
+
+[[tool.importlinter.contracts]]
+name = "processor does not depend on control plane, database, or ingest"
+type = "forbidden"
+source_modules = ["strumline.processor"]
+forbidden_modules = [
+    "strumline.api",
+    "strumline.cli",
+    "strumline.control",
+    "strumline.db",
+    "strumline.ingest",
+]
+
+[[tool.importlinter.contracts]]
+name = "control depends only on database and domain packages"
+type = "forbidden"
+source_modules = ["strumline.control"]
+forbidden_modules = [
+    "strumline.api",
+    "strumline.cli",
+    "strumline.config",
+    "strumline.ingest",
+    "strumline.ipc",
+    "strumline.logging_config",
+    "strumline.metrics",
+    "strumline.processor",
+    "strumline.sinks",
+]
+
+[[tool.importlinter.contracts]]
+name = "cli does not depend on data-plane packages"
+type = "forbidden"
+source_modules = ["strumline.cli"]
+forbidden_modules = [
+    "strumline.api",
+    "strumline.ingest",
+    "strumline.ipc",
+    "strumline.metrics",
+    "strumline.processor",
+    "strumline.sinks",
+]
+
+[[tool.importlinter.contracts]]
+name = "api does not depend on data-plane packages"
+type = "forbidden"
+source_modules = ["strumline.api"]
+forbidden_modules = [
+    "strumline.cli",
+    "strumline.ingest",
+    "strumline.ipc",
+    "strumline.processor",
+    "strumline.sinks",
+]
+
+[[tool.importlinter.contracts]]
+name = "sinks do not depend on process or persistence packages"
+type = "forbidden"
+source_modules = ["strumline.sinks"]
+forbidden_modules = [
+    "strumline.api",
+    "strumline.cli",
+    "strumline.control",
+    "strumline.db",
+    "strumline.ingest",
+    "strumline.ipc",
+    "strumline.metrics",
+    "strumline.processor",
 ]

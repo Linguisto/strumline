@@ -45,8 +45,8 @@ ipc/        → domain/ only
 ingest/     → domain/, ipc/, metrics/, db/ (read-only auth token resolver only)
 processor/  → domain/, ipc/, metrics/, sinks/ (contract + factory, not loki directly)
 control/    → db/, domain/
-cli/        → control/, domain/
-api/        → control/, domain/
+cli/        → control/, domain/; composition root may wire config + DB session factory
+api/        → control/, domain/; server composition root may wire config + DB session factory
 ```
 
 **UTC everywhere** — every timestamp stored, transmitted, or logged must be timezone-aware UTC. PostgreSQL columns use `TIMESTAMPTZ`. JSON serializes timestamps with a trailing `Z`. Missing/naive/malformed client timestamps fall back to server `received_at`. `App.timezone` is IANA for display only — never a storage timezone.

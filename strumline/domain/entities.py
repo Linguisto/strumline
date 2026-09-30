@@ -14,6 +14,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
+
+class _Unset:
+    """Sentinel distinguishing an omitted update field from an explicit null."""
+
+
+UNSET = _Unset()
+
 # Valid slug: lowercase ASCII letters, digits, hyphens; no leading/trailing hyphens
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$")
 

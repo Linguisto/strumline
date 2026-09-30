@@ -111,6 +111,14 @@ on your own hardware to reproduce; numbers scale with CPU but the harness shape
 and targets are fixed. Ad-hoc runs should target `benchmarks/runs/` (ignored)
 so the baseline only changes on a deliberate update.
 
+The published 2026-09-23 baseline is one repetition on a 14-core Apple M4 Pro
+(10 performance and 4 efficiency cores), 48 GB RAM, macOS 26.5.2 arm64, and
+Python 3.14.6. It covers the OTLP/HTTP JSON request path only. Protobuf and gzip
+have interoperability coverage in the test suite, but the published latency and
+throughput numbers must not be attributed to those encodings. Run multiple
+repetitions and report their spread before using the baseline for hardware or
+release-to-release comparisons.
+
 ## Scope and exclusions
 
 Measured here:
