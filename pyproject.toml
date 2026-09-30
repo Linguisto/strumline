@@ -41,10 +41,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Linguisto/telemetria"
-Repository = "https://github.com/Linguisto/telemetria"
-Issues = "https://github.com/Linguisto/telemetria/issues"
-Changelog = "https://github.com/Linguisto/telemetria/releases"
+Homepage = "https://github.com/Linguisto/strumline"
+Repository = "https://github.com/Linguisto/strumline"
+Issues = "https://github.com/Linguisto/strumline/issues"
+Changelog = "https://github.com/Linguisto/strumline/releases"
 
 [project.scripts]
 strumline = "strumline.cli.main:app"
