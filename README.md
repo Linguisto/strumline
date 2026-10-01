@@ -1,13 +1,13 @@
 # Strumline
 
 Strumline is an opinionated, ready-to-use telemetry ingress layer for OTLP/HTTP
-logs. Send standard OTLP logs directly over HTTP or use any compatible
-OpenTelemetry SDK/exporter. Set an app token to route logs to your existing
-Loki/Grafana setup.
+logs. Point any standard OpenTelemetry SDK/exporter at Strumline, set an app
+token, and send logs to your existing Loki/Grafana setup.
 
 Strumline handles authentication, token-based project/app routing, batching,
 retries, and best-effort delivery to Loki. No Collector configuration or
-Strumline-specific client SDK is required.
+Strumline-specific SDK is required. You can also send OTLP directly over HTTP,
+which is useful for smoke tests.
 
 ## Quickstart
 
@@ -21,7 +21,7 @@ touches PostgreSQL.
 2. Fill in the `STRUMLINE_` settings in `.env` for your database, Loki, and secrets.
    The database must exist and be reachable from Docker; bootstrap needs role
    creation and grant permissions. Keep `STRUMLINE_APP_KEY` for future restarts.
-3. With Docker Compose v2 and `jq` installed, run:
+3. With Docker Compose v2 and `jq` installed, deploy Strumline and create an app:
 
 ```bash
 docker compose pull
@@ -33,39 +33,40 @@ docker compose run --rm strumline-cli strumline project create demo --name "Demo
 APP_JSON=$(docker compose run --rm -T strumline-cli strumline app create demo web --name "Web")
 export STRUMLINE_TOKEN=$(printf '%s' "$APP_JSON" | jq -r '.token_key')
 unset APP_JSON
-
-curl --fail-with-body http://localhost:8001/v1/logs \
-  -H "x-strumline-token: ${STRUMLINE_TOKEN}" \
-  -H 'Content-Type: application/json' \
-  --data '{"resourceLogs":[{"scopeLogs":[{"logRecords":[
-    {"severityNumber":9,"body":{"stringValue":"strumline-first-log"}}
-  ]}]}]}'
 ```
 
 Save the token securely; it is shown once and routes logs to this project/app.
-In Grafana Explore, select your Loki data source and query:
+Configure any OTLP/HTTP logs SDK/exporter you already use, then emit a log through
+your application's normal logging integration:
+
+```bash
+export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:8001/v1/logs
+export OTEL_EXPORTER_OTLP_LOGS_HEADERS="x-strumline-token=${STRUMLINE_TOKEN}"
+export OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
+export OTEL_EXPORTER_OTLP_LOGS_COMPRESSION=gzip
+```
+
+For remote applications, replace the endpoint with the HTTPS URL in front of
+ingest port 8001. SDK configuration varies by language; equivalent explicit
+exporter options work too. No Strumline-specific SDK is needed. To test without
+an SDK, use the [direct HTTP smoke test](docs/quickstart.md#direct-http-smoke-test).
+
+In Grafana Explore, select your Loki data source and query for the log you sent,
+for example:
 
 ```logql
 {project="demo",app="web"} |= "strumline-first-log"
 ```
 
-The event should appear within a few seconds. `200` means **in-memory admission,
-not durable delivery**; queue saturation returns retryable `503`.
-
-Send OTLP/HTTP logs directly with any HTTP client, or optionally use an
-OpenTelemetry SDK/exporter. JSON, Protobuf, and gzip are supported. For remote
-clients, expose port 8001 through your TLS proxy; keep admin and metrics private.
+The event should appear within a few seconds. Strumline accepts OTLP/HTTP JSON and
+Protobuf with gzip support. A `200` means **in-memory admission, not durable
+delivery**; queue saturation returns retryable `503`. Raw telemetry never touches
+PostgreSQL.
 
 [Detailed setup and troubleshooting](docs/quickstart.md) ·
 [OTLP exporter configuration](docs/api/otlp-logs.md) ·
 [Production operations](docs/production.md) · [Configuration](docs/configuration.md) ·
-[Security](docs/security.md)
-
-For monitoring examples to inspect or copy, see the
-[Prometheus scrape config](docker/observability/prometheus.yml),
-[Grafana data sources](docker/observability/grafana/provisioning/datasources/datasources.yaml),
-and [Grafana dashboard](docker/observability/grafana/provisioning/dashboards/strumline.json).
-[Adaptation and provisioning details](docs/quickstart.md#4-verify-delivery-in-lokigrafana).
+[Security](docs/security.md) · [Observability](docs/observability.md)
 
 ## Local development
 

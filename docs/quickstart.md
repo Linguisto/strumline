@@ -1,8 +1,9 @@
 # First logs with external PostgreSQL and Loki
 
 Already have PostgreSQL, Loki, and Grafana? Deploy the published Strumline image,
-create an app token, and send OTLP logs over HTTP. An OpenTelemetry SDK/exporter
-is optional. PostgreSQL stores projects, apps, and token hashes only — raw
+create an app token, and point any standard OTLP/HTTP logs SDK/exporter at it.
+No Strumline-specific SDK is required. You can also send OTLP directly over HTTP
+for testing. PostgreSQL stores projects, apps, and token hashes only — raw
 telemetry never touches it.
 Loki is the recommended v1 sink; use your existing Grafana to explore the logs.
 PostgreSQL and Loki are external dependencies. Grafana and Prometheus are optional
@@ -38,8 +39,8 @@ docker compose up -d
 
 Bootstrap needs permission to create roles and grant access to the migrated
 tables. If the app role lacks it, have your DBA run that one job with suitable
-credentials (override `DB_USER`/`DB_PASSWORD` for the job only). Re-running bootstrap
-keeps an existing role password unchanged.
+credentials (override `STRUMLINE_DB_USER`/`STRUMLINE_DB_PASSWORD` for the job
+only). Re-running bootstrap keeps an existing role password unchanged.
 
 This example binds HTTP ports to localhost. For remote exporters, put ingest
 behind your TLS reverse proxy and route `/v1/logs` to port **8001**. Keep the admin
@@ -63,15 +64,29 @@ token under `token_key`. Save it in your application's secret store. It is shown
 only once; if lost, create a replacement with `strumline token create <app-id>`.
 The token alone determines project/app routing, regardless of resource attributes.
 
-## 3. Send a log
+## 3. Configure an OpenTelemetry exporter
 
-Send standard OTLP logs to `POST /v1/logs` with your `x-strumline-token` header.
-You can use any HTTP client directly; an SDK, exporter, or Collector is optional.
-Strumline accepts OTLP JSON (`application/json`) and Protobuf
-(`application/x-protobuf`), with optional `Content-Encoding: gzip`.
-The request body must follow the OTLP logs format, as in this example.
+Use any standard OTLP/HTTP logs SDK/exporter you already prefer. Configure its
+endpoint and token, enable your SDK's logs pipeline and logging bridge, then emit
+`strumline-first-log` through your application's normal logger:
 
-**Direct HTTP:** send your first event from the deployment host:
+```bash
+export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:8001/v1/logs
+export OTEL_EXPORTER_OTLP_LOGS_HEADERS="x-strumline-token=${STRUMLINE_TOKEN}"
+export OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
+export OTEL_EXPORTER_OTLP_LOGS_COMPRESSION=gzip
+```
+
+For a remote application, replace the local endpoint with the HTTPS URL in front
+of ingest port 8001. Language SDK support for environment configuration varies;
+equivalent explicit exporter options work as well. No Strumline-specific SDK is
+needed. See the [OTLP contract and exporter setup](api/otlp-logs.md) for SDK and
+Collector examples, batch limits, and tuning.
+
+### Direct HTTP smoke test
+
+To test the deployment without configuring an SDK, send a standard OTLP JSON
+request from the deployment host:
 
 ```bash
 curl --fail-with-body http://localhost:8001/v1/logs \
@@ -85,25 +100,6 @@ curl --fail-with-body http://localhost:8001/v1/logs \
 Full success returns `200` with `{}`: **in-memory admission, not durable delivery**.
 Partial success reports rejected records. Queue saturation returns retryable `503`;
 retry with backoff. Delivery to Loki is best-effort.
-
-**Optional SDK/exporter:** if you already use OpenTelemetry or want its logging
-integration, configure any compatible OTLP/HTTP logs SDK/exporter in your
-application's environment:
-
-```bash
-export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:8001/v1/logs
-export OTEL_EXPORTER_OTLP_LOGS_HEADERS="x-strumline-token=${STRUMLINE_TOKEN}"
-export OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf   # or http/json
-export OTEL_EXPORTER_OTLP_LOGS_COMPRESSION=gzip
-export OTEL_BLRP_MAX_EXPORT_BATCH_SIZE=128
-```
-
-These variables configure an installed exporter; enable your SDK's logs pipeline
-and emit a log through its logging bridge. SDK support for environment variables
-varies; equivalent explicit options also work. For a remote application, replace
-the local URL in either approach with your HTTPS ingest URL. See the
-[OTLP contract and exporter setup](api/otlp-logs.md) for payload details,
-batch limits, and Collector configuration.
 
 ## 4. Verify delivery in Loki/Grafana
 
@@ -156,4 +152,3 @@ delivery; use the Loki query above for that.
 
 See [Security](security.md), [Observability](observability.md), and
 [Production deployment and recovery](production.md) for deeper diagnostics.
-

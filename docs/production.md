@@ -48,7 +48,7 @@ a different key. Rotate ingestion tokens deliberately after an APP_KEY loss.
    digest and configuration.
 2. Review release notes for schema, configuration, HTTP, IPC, and sink changes.
 3. Pull by digest, run migrations once, then replace processor, ingest, and API.
-4. Run `strumline doctor` and the README create → ingest → Loki smoke test.
+4. Run `strumline doctor` and the quickstart create → export → Loki verification.
 
 Alembic migrations include downgrade functions, but data-preserving rollback is
 not guaranteed across every release. Restore the pre-upgrade database backup
