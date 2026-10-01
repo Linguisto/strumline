@@ -33,14 +33,21 @@ Grafana remain optional external integrations in production.
 
 Code changes in `strumline/` reload automatically inside the containers.
 
-Create a project and app. App creation prints its first ingestion token exactly
-once; copy that value into your shell without committing it:
+Create a project and app. Both commands print JSON on stdout; `app create`
+emits its first ingestion token exactly once, under `token_key`. Capture that
+value into your shell without committing it:
 
 ```bash
 docker compose run --rm strumline-cli strumline project create demo --name "Demo"
-docker compose run --rm strumline-cli strumline app create demo web --name "Web"
-export STRUMLINE_TOKEN='<token printed by app create>'
+
+# app create prints JSON: {"id": ..., "slug": "web", "token_id": ..., "token_key": "..."}
+APP_JSON=$(docker compose run --rm -T strumline-cli strumline app create demo web --name "Web")
+export STRUMLINE_TOKEN=$(printf '%s' "$APP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token_key"])')
 ```
+
+The `-T` flag disables Compose's TTY allocation so the JSON is captured cleanly.
+The token is shown only at creation — `app show`/`info` never print it again. If
+you lose it, create a new token with `strumline token create <app-id>`.
 
 ## Send logs
 
@@ -103,6 +110,24 @@ export OTEL_EXPORTER_OTLP_LOGS_COMPRESSION=gzip
 
 See the [OTLP contract](docs/api/otlp-logs.md) for full SDK and Collector examples.
 
+## Troubleshooting
+
+Run `strumline doctor` first — it checks process health, database connectivity,
+migration state, and (when `SINK_PROVIDER=loki`) Loki reachability, and prints a
+next step for every failing check. It is read-only and does **not** verify sink
+delivery; use the Loki query above for that.
+
+| Symptom | Likely cause | What to do |
+|---|---|---|
+| `401`/`403` on `/v1/logs` | Missing/invalid/revoked token, or `APP_KEY` changed | Confirm `x-strumline-token`; recreate a token with `strumline token create <app-id>`. Changing `APP_KEY` invalidates existing token hashes. |
+| Retryable `503` from ingest | Queue saturated (backpressure) | Retry with backoff; the event was not admitted. Sustained `503` means the processor/sink is not draining — check `strumline doctor` and processor logs. |
+| Ingest returns `200` but nothing in Loki | `200` is in-memory admission, not delivery; sink/IPC/processor issue, or wrong labels | Check `strumline doctor` (loki reachable), processor `events_dropped` metrics, and that the Loki query uses the correct `project`/`app` labels. |
+| CLI hangs or exits non-zero | Missing input in a non-interactive shell, or DB unreachable | Pass all required args (see `--help`); an "Operational error" on stderr means a dependency/config problem — run `strumline doctor`. |
+| Migrations out of date | Schema not applied | Run `make migrate` (or `strumline migrate`). |
+
+See [Security](docs/security.md), [Observability](docs/observability.md), and
+[Production deployment and recovery](docs/production.md) for deeper diagnostics.
+
 ## Common commands
 
 ```bash
@@ -117,7 +142,7 @@ make test.unit      # unit tests only, no Docker required
 ## Building the image
 
 ```bash
-make build.dev      # dev image — includes pytest, ruff, mypy; used by make install
+make build.dev      # dev image — includes pytest, ruff, mypy; used by lint/test
 make build          # production image — runtime stage only, no dev deps
 ```
 
@@ -149,8 +174,9 @@ A local Python 3.14+ environment with `uv` is needed only for IDE tooling or `DC
 
 OTLP/HTTP logs are implemented: Protobuf/JSON, gzip, app-token routing, and
 metadata preservation through the existing pipeline. The v1 hardening and
-release gate (M7) is complete. M7b is the remaining public-release gate; M7c is
-an optional usability pass.
+release gate (M7) is complete. M7b (public-release preparation) completes the
+mandatory `M7 → M7b → v1.0` path; M7c is an optional CLI/docs/DX polish pass and
+is not a release prerequisite.
 
 After v1:
 
@@ -166,18 +192,29 @@ See the [full roadmap](.kiro/plans/roadmap.md) and
 
 ## Docs
 
-- [Architecture overview](docs/architecture/overview.md)
-- [Architecture decisions](docs/architecture/decisions.md)
-- [Configuration reference](docs/configuration.md)
-- [OTLP logs and exporter configuration](docs/api/otlp-logs.md)
-- [IPC protocol](docs/ipc-protocol.md)
-- [Sinks](docs/sinks.md)
-- [Security](docs/security.md)
-- [Observability](docs/observability.md)
-- [Observability recipes](docs/observability-recipes.md)
-- [Ingest replacement guide](docs/ingest-replacement.md)
-- [Benchmarks and methodology](docs/benchmarks.md)
+Start here based on what you are doing:
+
+**Application developers** (send logs from your app):
+- [OTLP logs and exporter configuration](docs/api/otlp-logs.md) — endpoint, auth header, JSON/Protobuf/gzip, SDK/Collector setup
+- The [Quickstart](#quickstart) and [Send logs](#send-logs) walkthrough above
+
+**Operators** (deploy, configure, diagnose):
 - [Production deployment and recovery](docs/production.md)
+- [Configuration reference](docs/configuration.md)
+- [Security](docs/security.md)
+- [Observability](docs/observability.md) and [Observability recipes](docs/observability-recipes.md)
+- [Troubleshooting](#troubleshooting) above (`strumline doctor`)
+
+**Contributors** (build, test, extend):
+- [Architecture overview](docs/architecture/overview.md) and [decisions](docs/architecture/decisions.md)
+- [Contributing guide](CONTRIBUTING.md) — environment, quality gates, workflow
+- [Benchmarks and methodology](docs/benchmarks.md)
+
+**Sink implementers** (add a delivery backend):
+- [Sinks](docs/sinks.md) — `EventSink` contract and registry
+- [IPC protocol](docs/ipc-protocol.md)
+- [Ingest replacement guide](docs/ingest-replacement.md)
+
+**Release and support:**
 - [v1 release checklist](docs/release-checklist.md)
-- [Support](SUPPORT.md)
-- [Security reporting](SECURITY.md)
+- [Support](SUPPORT.md) and [Security reporting](SECURITY.md)

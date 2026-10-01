@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help build build.dev up down init bootstrap bootstrap.rotate bash lint test test.unit test.integration migrate benchmarks
+.PHONY: help build build.dev up down init bootstrap bootstrap.rotate bash lint test test.unit test.integration migrate benchmarks benchmarks.baseline
 
 IMAGE_TAG ?= dev
 
@@ -81,5 +81,8 @@ migrate: ## Run database migrations to head
 # ---------------------------------------------------------------------------
 # Benchmarks
 # ---------------------------------------------------------------------------
-benchmarks: ## Run the receipt-to-enqueue benchmark and write benchmarks/results/
-	$(DC_EXEC) python benchmarks/receipt_to_enqueue.py
+benchmarks: ## Run the receipt-to-enqueue benchmark (writes benchmarks/runs/, not the baseline)
+	$(DC_EXEC) python benchmarks/receipt_to_enqueue.py --out benchmarks/runs
+
+benchmarks.baseline: ## Refresh the committed benchmarks/results/ baseline (deliberate)
+	$(DC_EXEC) python benchmarks/receipt_to_enqueue.py --out benchmarks/results

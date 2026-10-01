@@ -5,15 +5,27 @@ from __future__ import annotations
 from dataclasses import asdict
 
 import typer
-from rich.console import Console
-from rich.panel import Panel
 
-from strumline.cli.helpers import get_app_key, get_factory, handle_error, print_json, run
+from strumline.cli.helpers import (
+    confirm_destructive,
+    get_app_key,
+    get_factory,
+    print_json,
+    prompt_select,
+    require_arg,
+    run_command,
+)
 from strumline.cli.wizards import wizard_app_create
 from strumline.control.apps import AppService
-from strumline.domain.errors import StrumlineError
 
 app = typer.Typer(help="Manage apps.", no_args_is_help=True)
+
+
+async def _fetch_project_slugs() -> list[str]:
+    async with get_factory()() as session, session.begin():
+        from strumline.control.projects import ProjectService
+
+        return [p.slug for p in await ProjectService(session).list_all()]
 
 
 @app.command("create")
@@ -23,52 +35,33 @@ def create(
     name: str = typer.Option(None, "--name", "-n", help="Display name."),
     timezone: str | None = typer.Option(None, "--timezone", "-z", help="IANA display timezone."),
 ) -> None:
-    """Create a new app in a project."""
-    if not project and not slug and not name:
+    """Create a new app in a project.
 
-        async def _fetch_projects() -> list[str]:
-            async with get_factory()() as session, session.begin():
-                from strumline.control.projects import ProjectService
-
-                return [p.slug for p in await ProjectService(session).list_all()]
-
-        try:
-            project_slugs = run(_fetch_projects())
-        except Exception:
-            project_slugs = []
-
-        fields = wizard_app_create(project_slugs)
-        project = fields["project"]
-        name = fields["name"]
-        slug = fields["slug"]
-        timezone = timezone or (fields["timezone"] or None)
-    elif not project:
-        from strumline.cli.helpers import prompt_select
-
-        async def _fetch_ps() -> list[str]:
-            async with get_factory()() as session, session.begin():
-                from strumline.control.projects import ProjectService
-
-                return [p.slug for p in await ProjectService(session).list_all()]
-
-        try:
-            slugs = run(_fetch_ps())
-        except Exception:
-            slugs = []
-        project = prompt_select("Project", slugs) if slugs else typer.prompt("Project slug or UUID")
-    if not slug and not name:
-        from strumline.cli.helpers import slugify
-
-        name = typer.prompt("Name")
-        slug = typer.prompt("Slug", default=slugify(name))
-    elif not name:
-        name = typer.prompt("Name")
-    elif not slug:
-        from strumline.cli.helpers import slugify
-
-        slug = typer.prompt("Slug", default=slugify(name))
+    Fully specified (``project``, ``slug``, ``--name``) it is non-interactive and
+    scriptable. Its result — including the one-time auth token — is written as
+    JSON to stdout so scripts can capture it. Missing fields trigger prompts only
+    when attached to a TTY; non-interactive callers get actionable guidance.
+    """
 
     async def _run() -> None:
+        nonlocal project, slug, name, timezone
+        if not project and not slug and not name:
+            fields = wizard_app_create(await _fetch_project_slugs())
+            project = fields["project"]
+            name = fields["name"]
+            slug = fields["slug"]
+            timezone = timezone or (fields["timezone"] or None)
+        else:
+            if not project:
+                slugs = await _fetch_project_slugs()
+                project = (
+                    prompt_select("Project", slugs)
+                    if slugs
+                    else require_arg(None, "project", example="app create <project> <slug>")
+                )
+            name = require_arg(name, "name", example="--name 'Web'")
+            slug = require_arg(slug, "slug", example="app create <project> web")
+
         async with get_factory()() as session, session.begin():
             svc = AppService(session)
             result = await svc.create(project, slug, name, tz=timezone)
@@ -78,22 +71,15 @@ def create(
 
             token, raw_key = await AuthTokenService(session, get_app_key()).create(result.id)
 
-        console = Console()
-        console.print(f"\n[green]✓[/green] App [bold]{result.slug}[/bold] created")
-        console.print(
-            Panel(
-                f"[bold yellow]{raw_key}[/bold yellow]",
-                title="Auth token key — save it now, shown only once",
-                border_style="yellow",
-            )
-        )
-        console.print(f"[dim]App ID:[/dim]    {result.id}")
-        console.print(f"[dim]Token ID:[/dim]  {token.id}\n")
+        # Machine-readable creation result on stdout. The raw token key is only
+        # ever emitted here, in the explicit creation result — never in
+        # list/show/log output.
+        payload = asdict(result)
+        payload["token_id"] = str(token.id)
+        payload["token_key"] = raw_key
+        print_json(payload)
 
-    try:
-        run(_run())
-    except StrumlineError as e:
-        handle_error(e)
+    run_command(_run())
 
 
 @app.command("show")
@@ -109,10 +95,7 @@ def show(
             result = await svc.get(project, app_id)
             print_json(asdict(result))
 
-    try:
-        run(_run())
-    except StrumlineError as e:
-        handle_error(e)
+    run_command(_run())
 
 
 @app.command("delete")
@@ -122,16 +105,13 @@ def delete(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation."),
 ) -> None:
     """Delete an app and all its auth tokens."""
-    if not yes:
-        typer.confirm(f"Delete app {app_id!r} and all its auth tokens?", abort=True)
 
     async def _run() -> None:
+        if not yes:
+            confirm_destructive(f"Delete app {app_id!r} and all its auth tokens?")
         async with get_factory()() as session, session.begin():
             svc = AppService(session)
             await svc.delete(project, app_id)
             typer.echo(f"Deleted app {app_id!r}.")
 
-    try:
-        run(_run())
-    except StrumlineError as e:
-        handle_error(e)
+    run_command(_run())

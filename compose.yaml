@@ -154,6 +154,9 @@ services:
       <<: [ *common-env, *db-env, *ingest-db-env ]
     volumes:
       - ./strumline:/app/strumline:ro
+      # Dev-only: makes `make benchmarks` runnable in the CLI container. The
+      # benchmark harness is never copied into the runtime image.
+      - ./benchmarks:/app/benchmarks
     depends_on:
       postgres:
         condition: service_healthy

@@ -6,8 +6,7 @@ import typer
 from rich.console import Console
 from rich.tree import Tree
 
-from strumline.cli.helpers import get_factory, handle_error, run
-from strumline.domain.errors import StrumlineError
+from strumline.cli.helpers import get_factory, run_command
 
 app = typer.Typer(help="Show all projects, apps, and tokens.", add_help_option=True)
 _console = Console()
@@ -53,7 +52,4 @@ def info() -> None:
 
                 _console.print(p_tree)
 
-    try:
-        run(_run())
-    except StrumlineError as e:
-        handle_error(e)
+    run_command(_run())
