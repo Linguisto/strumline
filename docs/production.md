@@ -1,9 +1,11 @@
 # Production deployment, upgrade, and recovery
 
 Strumline publishes one Linux `amd64`/`arm64` image to
-`ghcr.io/linguisto/telemetria`. Use an immutable release tag or digest in
+`ghcr.io/linguisto/strumline`. Use an immutable release tag or digest in
 production. The development Compose file is a local example; it includes sample
 infrastructure, reload flags, anonymous Grafana access, and development defaults.
+
+For a copyable deployment and first-log walkthrough, see [Quickstart](quickstart.md).
 
 ## Topology and startup
 
