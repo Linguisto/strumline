@@ -38,6 +38,10 @@ Code under `strumline/` hot-reloads inside the containers.
 - Open a pull request. PR gates run ruff, format check, mypy, import-linter,
   PostgreSQL integration tests, real Collector interoperability, dependency
   review, and security scans before merge.
+- Merges do not start another validation pass. Maintainers can run **Main CI**
+  manually from `main` when they want to validate it and publish the mutable
+  `:dev` image. Stable releases still run exact-commit validation from a version
+  tag before publishing.
 - Keep PR titles under ~70 characters; put detail (what changed, what was
   tested, anything deferred) in the description.
 
