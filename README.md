@@ -11,33 +11,41 @@ which is useful for smoke tests.
 
 ## Quickstart
 
-Have PostgreSQL and Loki already? Strumline uses your existing services; view logs
-in your existing Grafana. Loki is the recommended v1 sink. Raw telemetry never
-touches PostgreSQL.
+This path assumes you already run PostgreSQL and Loki. Grafana is optional and
+external; use your existing instance to view the logs. You need Docker Compose
+v2 on the deployment host.
 
-1. Copy [compose.production.yaml](docker/compose.production.yaml) as `compose.yaml`
-   and [.env.production](docker/.env.production) as `.env` into a
-   deployment directory. The Compose file uses `ghcr.io/linguisto/strumline:1.0.0`.
-2. Fill in the `STRUMLINE_` settings in `.env` for your database, Loki, and secrets.
-   The database must exist and be reachable from Docker; bootstrap needs role
-   creation and grant permissions. Keep `STRUMLINE_APP_KEY` for future restarts.
-3. With Docker Compose v2 and `jq` installed, deploy Strumline and create an app:
+### 1. Deploy Strumline
+
+Copy [compose.production.yaml](docker/compose.production.yaml) as `compose.yaml`
+and [.env.production](docker/.env.production) as `.env`. Fill in the
+`STRUMLINE_` values, then run:
 
 ```bash
 docker compose pull
 docker compose run --rm strumline-cli strumline migrate
 docker compose run --rm strumline-cli python -m strumline.db.bootstrap
 docker compose up -d
-
-docker compose run --rm strumline-cli strumline project create demo --name "Demo"
-APP_JSON=$(docker compose run --rm -T strumline-cli strumline app create demo web --name "Web")
-export STRUMLINE_TOKEN=$(printf '%s' "$APP_JSON" | jq -r '.token_key')
-unset APP_JSON
 ```
 
-Save the token securely; it is shown once and routes logs to this project/app.
-Configure any OTLP/HTTP logs SDK/exporter you already use, then emit a log through
-your application's normal logging integration:
+The Compose file deploys `ghcr.io/linguisto/strumline:1.0.0` and connects to your
+external PostgreSQL and Loki services. See the [detailed quickstart](docs/quickstart.md)
+for prerequisites, permissions, TLS, and network exposure.
+
+### 2. Create a destination
+
+```bash
+docker compose run --rm strumline-cli strumline project create demo --name "Demo"
+docker compose run --rm strumline-cli strumline app create demo web --name "Web"
+export STRUMLINE_TOKEN='<token_key from app create>'
+```
+
+The token is shown once. Store it securely; it routes every accepted log to this
+project and app.
+
+### 3. Point your OTLP exporter at Strumline
+
+Use any standard OTLP/HTTP logs SDK/exporter:
 
 ```bash
 export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:8001/v1/logs
@@ -46,22 +54,24 @@ export OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
 export OTEL_EXPORTER_OTLP_LOGS_COMPRESSION=gzip
 ```
 
-For remote applications, replace the endpoint with the HTTPS URL in front of
-ingest port 8001. SDK configuration varies by language; equivalent explicit
-exporter options work too. No Strumline-specific SDK is needed. To test without
-an SDK, use the [direct HTTP smoke test](docs/quickstart.md#direct-http-smoke-test).
+Emit `strumline-first-log` through your application's logging integration. For a
+remote application, use the HTTPS endpoint in front of ingest port 8001. SDKs may
+also accept these values as explicit exporter options. No Strumline-specific SDK
+is required. For a test without an SDK, use the
+[direct HTTP smoke test](docs/quickstart.md#direct-http-smoke-test).
 
-In Grafana Explore, select your Loki data source and query for the log you sent,
-for example:
+### 4. See the log in Loki
+
+In Grafana Explore, select your Loki data source and run:
 
 ```logql
 {project="demo",app="web"} |= "strumline-first-log"
 ```
 
 The event should appear within a few seconds. Strumline accepts OTLP/HTTP JSON and
-Protobuf with gzip support. A `200` means **in-memory admission, not durable
-delivery**; queue saturation returns retryable `503`. Raw telemetry never touches
-PostgreSQL.
+Protobuf with gzip. A `200` acknowledges **in-memory admission, not durable
+delivery**; queue saturation returns retryable `503`. Delivery is best-effort,
+and raw telemetry never touches PostgreSQL.
 
 [Detailed setup and troubleshooting](docs/quickstart.md) ·
 [OTLP exporter configuration](docs/api/otlp-logs.md) ·
@@ -71,86 +81,25 @@ PostgreSQL.
 ## Local development
 
 The repository's bundled Compose stack is for development, testing, and local
-demos. It builds the dev image and includes PostgreSQL, Loki, Prometheus, and
-Grafana with development defaults and automatic code reload:
+demos. It includes PostgreSQL, Loki, Prometheus, and Grafana with development
+defaults and automatic code reload:
 
 ```bash
-make up             # build, migrate, provision read-only ingest, start stack
+make up
 ```
 
-Local endpoints: API `http://localhost:8000/health`, ingest
-`http://localhost:8001/health`, processor `http://localhost:8002/health`,
-Loki `http://localhost:3100`, Prometheus `http://localhost:9090`, and
-Grafana `http://localhost:3000`. Use the creation and send commands above;
-query the local Loki through Grafana or its HTTP API.
+Use `make down` to stop it. See [Contributing](CONTRIBUTING.md) for the development
+workflow and commands.
 
-```bash
-make down           # stop the local stack (keeps volumes)
-make migrate        # run database migrations
-make bootstrap      # verify/provision the read-only ingest DB role
-make lint           # ruff + mypy + import-linter
-make test           # full suite, needs Docker
-make test.unit      # unit tests only
-make build.dev      # dev image with lint/test tools
-make build          # non-root production image, no dev dependencies
-```
+## Documentation
 
-Development requires Docker with Compose v2 and `make`. Python 3.14+ with `uv`
-is needed only for IDE tooling or local checks via `DC_EXEC="uv run"`.
-See [Contributing](CONTRIBUTING.md) and the
-[Architecture overview](docs/architecture/overview.md) for internals.
-
-## Roadmap
-
-OTLP/HTTP logs are implemented: Protobuf/JSON, gzip, app-token routing, and
-metadata preservation through the existing pipeline. The v1 hardening and
-release gate (M7) is complete. M7b (public-release preparation) completes the
-mandatory `M7 → M7b → v1.0` path; M7c is an optional CLI/docs/DX polish pass and
-is not a release prerequisite.
-
-After v1:
-
-- **M5 — local ingestion:** expose the HTTP ingest API over a Unix socket.
-- **M8 — deeper OpenTelemetry integration:** add OTLP/gRPC, first-class log
-  metadata and correlation, then traces and metrics with signal-specific
-  processing and compatible sinks. Expand SDK/Collector interoperability and
-  operator diagnostics alongside each stage. Profiles remain a later candidate.
-
-See the [full roadmap](.kiro/plans/roadmap.md) and
-[M7b release preparation](.kiro/plans/m7b-release-preparation.md), plus the
-[M8 scope and acceptance criteria](.kiro/plans/m8-otlp-integration.md).
-
-## Docs
-
-Start here based on what you are doing:
-
-**Application developers** (send logs from your app):
-
-- [OTLP logs and exporter configuration](docs/api/otlp-logs.md) — endpoint, auth header, JSON/Protobuf/gzip,
-  SDK/Collector setup
-- The [Quickstart](#quickstart) walkthrough above
-
-**Operators** (deploy, configure, diagnose):
-
-- [Production deployment and recovery](docs/production.md)
-- [Configuration reference](docs/configuration.md)
-- [Security](docs/security.md)
-- [Observability](docs/observability.md) and [Observability recipes](docs/observability-recipes.md)
-- [Troubleshooting](docs/quickstart.md#troubleshooting) (`strumline doctor`)
-
-**Contributors** (build, test, extend):
-
-- [Architecture overview](docs/architecture/overview.md) and [decisions](docs/architecture/decisions.md)
-- [Contributing guide](CONTRIBUTING.md) — environment, quality gates, workflow
-- [Benchmarks and methodology](docs/benchmarks.md)
-
-**Sink implementers** (add a delivery backend):
-
-- [Sinks](docs/sinks.md) — `EventSink` contract and registry
-- [IPC protocol](docs/ipc-protocol.md)
-- [Ingest replacement guide](docs/ingest-replacement.md)
-
-**Release and support:**
-
-- [v1 release checklist](docs/release-checklist.md)
-- [Support](SUPPORT.md) and [Security reporting](SECURITY.md)
+- Send logs: [OTLP/HTTP contract and exporter configuration](docs/api/otlp-logs.md)
+- Operate Strumline: [production](docs/production.md),
+  [configuration](docs/configuration.md), [security](docs/security.md),
+  [observability](docs/observability.md), and
+  [troubleshooting](docs/quickstart.md#troubleshooting)
+- Contribute: [contributing guide](CONTRIBUTING.md) and
+  [architecture overview](docs/architecture/overview.md)
+- Extend Strumline: [sinks](docs/sinks.md), [IPC protocol](docs/ipc-protocol.md),
+  and [ingest replacement](docs/ingest-replacement.md)
+- Get help: [support](SUPPORT.md) and [security reporting](SECURITY.md)
