@@ -6,8 +6,8 @@ token, and send logs to your existing Loki/Grafana setup.
 
 Strumline handles authentication, token-based project/app routing, batching,
 retries, and best-effort delivery to Loki. No Collector configuration or
-Strumline-specific SDK is required. You can also send OTLP directly over HTTP,
-which is useful for smoke tests.
+Strumline-specific SDK is required. Use any standard OTLP exporter, or send
+standard OTLP JSON or Protobuf directly over HTTP.
 
 ## Quickstart
 
@@ -43,7 +43,21 @@ export STRUMLINE_TOKEN='<token_key from app create>'
 The token is shown once. Store it securely; it routes every accepted log to this
 project and app.
 
-### 3. Point your OTLP exporter at Strumline
+### 3. Send OTLP directly over HTTP
+
+Strumline accepts standard OTLP requests at `POST /v1/logs`. Direct HTTP is a
+supported integration path for any client that can produce OTLP JSON or Protobuf:
+
+```bash
+curl --fail-with-body http://localhost:8001/v1/logs \
+  -H "x-strumline-token: ${STRUMLINE_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  --data '{"resourceLogs":[{"scopeLogs":[{"logRecords":[
+    {"severityNumber":9,"body":{"stringValue":"strumline-first-log"}}
+  ]}]}]}'
+```
+
+### 4. Connect your application with an OTLP exporter
 
 Use any standard OTLP/HTTP logs SDK/exporter:
 
@@ -54,13 +68,13 @@ export OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
 export OTEL_EXPORTER_OTLP_LOGS_COMPRESSION=gzip
 ```
 
-Emit `strumline-first-log` through your application's logging integration. For a
-remote application, use the HTTPS endpoint in front of ingest port 8001. SDKs may
-also accept these values as explicit exporter options. No Strumline-specific SDK
-is required. For a test without an SDK, use the
-[direct HTTP smoke test](docs/quickstart.md#direct-http-smoke-test).
+For application logging, exporters provide the usual SDK logging integration,
+batching, and retry behavior. Emit `strumline-first-log` through your application's
+logging integration. For a remote application, use the HTTPS endpoint in front of
+ingest port 8001. SDKs may also accept these values as explicit exporter options.
+No Strumline-specific SDK is required.
 
-### 4. See the log in Loki
+### 5. See the log in Loki
 
 In Grafana Explore, select your Loki data source and run:
 
