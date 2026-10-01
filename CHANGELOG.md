@@ -4,7 +4,7 @@ All notable changes to Strumline are documented through GitHub releases. The
 release workflow generates per-commit notes from Conventional Commits with
 `git-cliff`; the human-readable summary for each release lives below.
 
-## Unreleased — v1.0.0 (preparing)
+## 1.0.0 — 2026-10-01
 
 First stable release: a best-effort structured-logs collector that accepts
 OTLP/HTTP, resolves a project and app from an ingestion token, batches events,
