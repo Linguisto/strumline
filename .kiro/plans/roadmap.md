@@ -141,5 +141,5 @@ are a later candidate rather than an M8 completion requirement.
 5. Ingest sustains at least 1,000 events/sec on one documented single-core test environment; HTTP receipt-to-enqueue P99 is below 5 ms.
 6. Overload and sink failure preserve service health while distinct drop/error counters explain losses.
 7. UTC invariants, import boundaries, and the IPC conformance suite pass in CI.
-8. M0, M1, M2, M2b, M3, M4, M6, M6b, M7, and M7b are complete. M5, M7c, and M8 are not required for v1.
+8. M0, M1, M2, M2b, M3, M4, M6, M6b, M7, M7b, and optional M7c are complete. M5 and M8 are not required for v1.
 9. Existing OTLP/HTTP logs pass SDK/Collector interoperability and overload/field-preservation checks as part of M7.

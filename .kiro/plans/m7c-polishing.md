@@ -2,7 +2,7 @@
 
 **Type:** Optional usability milestone
 
-**Status:** Planned
+**Status:** Implemented
 
 **Depends on:** M7b's corrected setup, security, and release contracts
 
@@ -202,18 +202,18 @@ compatibility implications, and anything explicitly deferred.
 
 ## Acceptance criteria
 
-- [ ] Expected CLI failures are actionable, consistently translated, and covered by meaningful tests.
-- [ ] No-resource results are distinguishable from configuration/database failures.
-- [ ] Fully specified resource commands work with closed stdin and no TTY.
-- [ ] Missing noninteractive inputs fail promptly; destructive commands require explicit intent.
-- [ ] JSON output parses cleanly, plain output contains no ANSI formatting, and diagnostics use stderr.
-- [ ] Raw token disclosure remains limited to creation; list/show/log/doctor output contains no secrets.
-- [ ] Doctor reports invalid configuration and useful next steps without writing or claiming delivery verification.
-- [ ] README exposes supported capabilities, best-effort limitations, and the first-event walkthrough clearly.
-- [ ] Developer/operator/contributor/sink-extension entry paths and local links are verified.
-- [ ] Help text and documented command names/prerequisites match the actual implementation.
-- [ ] The benchmark command works in the advertised dev environment and preserves published baseline results during validation.
-- [ ] Release notes use M7b contracts and include capability, limitation, and upgrade links.
-- [ ] All four user journeys are verified with sanitized evidence.
-- [ ] `make lint`, `make test.unit`, and Docker `make test` pass on the final implementation.
-- [ ] Roadmap marks M7c optional and leaves the mandatory M7b release gate and post-v1 milestones intact.
+- [x] Expected CLI failures are actionable, consistently translated, and covered by meaningful tests.
+- [x] No-resource results are distinguishable from configuration/database failures.
+- [x] Fully specified resource commands work with closed stdin and no TTY.
+- [x] Missing noninteractive inputs fail promptly; destructive commands require explicit intent.
+- [x] JSON output parses cleanly, plain output contains no ANSI formatting, and diagnostics use stderr.
+- [x] Raw token disclosure remains limited to creation; list/show/log/doctor output contains no secrets.
+- [x] Doctor reports invalid configuration and useful next steps without writing or claiming delivery verification.
+- [x] README exposes supported capabilities, best-effort limitations, and the first-event walkthrough clearly.
+- [x] Developer/operator/contributor/sink-extension entry paths and local links are verified.
+- [x] Help text and documented command names/prerequisites match the actual implementation.
+- [x] The benchmark command works in the advertised dev environment and preserves published baseline results during validation.
+- [x] Release notes use M7b contracts and include capability, limitation, and upgrade links.
+- [x] All four user journeys are verified with sanitized evidence.
+- [x] `make lint`, `make test.unit`, and Docker `make test` pass on the final implementation.
+- [x] Roadmap marks M7c optional and leaves the mandatory M7b release gate and post-v1 milestones intact.
