@@ -1,9 +1,11 @@
 # Production deployment, upgrade, and recovery
 
 Strumline publishes one Linux `amd64`/`arm64` image to
-`ghcr.io/linguisto/telemetria`. Use an immutable release tag or digest in
+`ghcr.io/linguisto/strumline`. Use an immutable release tag or digest in
 production. The development Compose file is a local example; it includes sample
 infrastructure, reload flags, anonymous Grafana access, and development defaults.
+
+For a copyable deployment and first-log walkthrough, see [Quickstart](quickstart.md).
 
 ## Topology and startup
 
@@ -46,7 +48,7 @@ a different key. Rotate ingestion tokens deliberately after an APP_KEY loss.
    digest and configuration.
 2. Review release notes for schema, configuration, HTTP, IPC, and sink changes.
 3. Pull by digest, run migrations once, then replace processor, ingest, and API.
-4. Run `strumline doctor` and the README create → ingest → Loki smoke test.
+4. Run `strumline doctor` and the quickstart create → ingest → Loki verification.
 
 Alembic migrations include downgrade functions, but data-preserving rollback is
 not guaranteed across every release. Restore the pre-upgrade database backup

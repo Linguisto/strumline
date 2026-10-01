@@ -1,0 +1,49 @@
+x-runtime: &runtime
+  image: ghcr.io/linguisto/strumline:1.0.0
+  restart: unless-stopped
+
+x-db-location: &db-location
+  DB_HOST: ${STRUMLINE_DB_HOST:?required}
+  DB_PORT: ${STRUMLINE_DB_PORT:-5432}
+  DB_NAME: ${STRUMLINE_DB_NAME:?required}
+
+x-control: &control
+  <<: *db-location
+  DB_USER: ${STRUMLINE_DB_USER:?required}
+  DB_PASSWORD: ${STRUMLINE_DB_PASSWORD:?required}
+  APP_KEY: ${STRUMLINE_APP_KEY:?required}
+
+services:
+  api:
+    <<: *runtime
+    command: strumline-api
+    environment: *control
+    ports: ["127.0.0.1:8000:8000"]
+  processor:
+    <<: *runtime
+    command: strumline-processor
+    environment:
+      SINK_PROVIDER: loki
+      LOKI_URL: ${STRUMLINE_LOKI_URL:?required}
+      LOKI_TENANT_ID: ${STRUMLINE_LOKI_TENANT_ID:-}
+    volumes: ["ipc-socket:/var/run/strumline"]
+  ingest:
+    <<: *runtime
+    command: strumline-ingest
+    environment:
+      <<: *db-location
+      INGEST_DB_USER: strumline_ingest
+      INGEST_DB_PASSWORD: ${STRUMLINE_INGEST_DB_PASSWORD:?required}
+      APP_KEY: ${STRUMLINE_APP_KEY:?required}
+    ports: ["127.0.0.1:8001:8001"]
+    volumes: ["ipc-socket:/var/run/strumline"]
+    depends_on: [processor]
+  strumline-cli:
+    image: ghcr.io/linguisto/strumline:1.0.0
+    profiles: [cli]
+    environment:
+      <<: *control
+      INGEST_DB_PASSWORD: ${STRUMLINE_INGEST_DB_PASSWORD:?required}
+
+volumes:
+  ipc-socket:
