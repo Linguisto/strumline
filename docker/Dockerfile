@@ -58,7 +58,8 @@ USER root
 # Apply security updates not yet present in the pinned base manifest. Runtime
 # dependency installation is complete, so remove pip and its vendored packages.
 RUN apt-get update \
- && apt-get install --only-upgrade --yes --no-install-recommends openssl libssl3t64 \
+ && apt-get install --only-upgrade --yes --no-install-recommends \
+      libpcre2-8-0 libssl3t64 openssl \
  && rm -rf /var/lib/apt/lists/* \
             /usr/local/lib/python3.14/site-packages/pip \
             /usr/local/lib/python3.14/site-packages/pip-*.dist-info \

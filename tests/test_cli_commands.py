@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 from typer.testing import CliRunner
 
 from strumline.cli.helpers import EXIT_UNAVAILABLE
@@ -94,7 +95,7 @@ def test_token_revoke_malformed_app_uuid_exits_validation() -> None:
 
 def test_operational_failure_uses_unavailable_exit_code() -> None:
     def _boom() -> object:
-        raise RuntimeError("connection refused to postgres://secret@host")
+        raise SQLAlchemyError("connection refused to postgres://secret@host")
 
     with patch("strumline.cli.projects.get_factory", side_effect=_boom):
         result = runner.invoke(app, ["project", "show", "demo"])
@@ -103,8 +104,21 @@ def test_operational_failure_uses_unavailable_exit_code() -> None:
     # Diagnostics on stderr, actionable, and the secret-bearing message is not echoed.
     assert "Operational error" in result.stderr
     assert "secret" not in result.stderr
-    assert "RuntimeError" in result.stderr
+    assert "SQLAlchemyError" in result.stderr
     assert result.stdout == ""
+
+
+def test_unexpected_programming_error_remains_diagnosable() -> None:
+    def _boom() -> object:
+        raise RuntimeError("unexpected programming defect")
+
+    with patch("strumline.cli.projects.get_factory", side_effect=_boom):
+        result = runner.invoke(app, ["project", "show", "demo"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, RuntimeError)
+    assert str(result.exception) == "unexpected programming defect"
+    assert "Operational error" not in result.stderr
 
 
 def test_domain_not_found_is_actionable_without_traceback() -> None:

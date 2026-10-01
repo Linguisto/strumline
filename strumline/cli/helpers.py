@@ -25,8 +25,10 @@ from typing import Any
 from uuid import UUID
 
 import typer
+from pydantic import ValidationError as PydanticValidationError
 from rich.console import Console
 from rich.table import Table
+from sqlalchemy.exc import SQLAlchemyError
 
 from strumline.config import DatabaseSettings
 from strumline.db.session import make_session_factory
@@ -291,14 +293,12 @@ def run_command(coro: Coroutine[Any, Any, Any]) -> Any:
 
     * ``StrumlineError`` — an expected user/domain error. Printed to stderr with
       its documented exit code and no traceback.
-    * Operational failure (database unreachable, invalid configuration) — any
-      other exception raised while running the command. Printed to stderr as an
-      operational error with :data:`EXIT_UNAVAILABLE`, including the exception
-      *type* (never its message, which may embed a connection string) so the
-      failure stays diagnosable without leaking secrets.
+    * Known operational failures (database errors and invalid configuration) —
+      printed to stderr with :data:`EXIT_UNAVAILABLE`, including the exception
+      *type* but never its potentially secret-bearing message.
 
-    Programming errors are still surfaced (distinct type name on stderr, non-zero
-    exit) rather than being swallowed into empty results elsewhere in the CLI.
+    Unexpected exceptions are deliberately left untouched so programming errors
+    retain their traceback and remain diagnosable.
     """
     try:
         return run(coro)
@@ -309,7 +309,7 @@ def run_command(coro: Coroutine[Any, Any, Any]) -> Any:
     except typer.Abort, KeyboardInterrupt:
         _err_console.print("[yellow]Aborted.[/yellow]")
         raise typer.Exit(code=1) from None
-    except Exception as exc:
+    except (PydanticValidationError, SQLAlchemyError) as exc:
         _err_console.print(
             f"[red]Operational error:[/red] {type(exc).__name__} — "
             "the command could not reach a dependency or the configuration is invalid. "
