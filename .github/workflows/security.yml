@@ -28,7 +28,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: "false"
-          GITLEAKS_VERSION: 8.28.0
+          GITLEAKS_VERSION: 8.30.1
 
   filesystem:
     name: Dependency and source scan
@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
-          version: v0.69.3
+          version: v0.76.2
           scan-type: fs
           scan-ref: .
           scanners: vuln,secret,misconfig
@@ -53,7 +53,7 @@ jobs:
       - run: docker build --target runtime --tag strumline:security --file docker/Dockerfile .
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
-          version: v0.69.3
+          version: v0.76.2
           image-ref: strumline:security
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
