@@ -3,13 +3,13 @@
 # ---------------------------------------------------------------------------
 # Stage 1: builder — install deps at /app so the venv path matches runtime
 # ---------------------------------------------------------------------------
-FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS builder
+FROM python:3.14-slim@sha256:af8a5aa14780025dbfbcfbc81bd8a91ebd87711dd5b0f48ed71090949dd7cb1d AS builder
 
 # Build directly at /app so shebang paths in the venv are already correct
 # when copied into the runtime stage — no relocation needed.
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv==0.12.20
+RUN pip install --no-cache-dir uv==0.13.7
 
 COPY pyproject.toml uv.lock README.md ./
 
@@ -27,7 +27,7 @@ RUN uv sync --locked --no-dev
 # ---------------------------------------------------------------------------
 # Stage 2: shared runtime base
 # ---------------------------------------------------------------------------
-FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS runtime-base
+FROM python:3.14-slim@sha256:af8a5aa14780025dbfbcfbc81bd8a91ebd87711dd5b0f48ed71090949dd7cb1d AS runtime-base
 
 ARG UID=10001
 ARG GID=10001
@@ -81,7 +81,7 @@ COPY alembic/ /app/alembic/
 COPY alembic.ini /app/
 COPY tests/ /app/tests/
 
-RUN pip install --no-cache-dir uv==0.12.20 \
+RUN pip install --no-cache-dir uv==0.13.7 \
     && uv sync --locked --dev \
  && pip uninstall -y uv \
  && chown -R "${UID}:${GID}" /app/.venv /app/tests

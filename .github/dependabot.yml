@@ -21,3 +21,10 @@ updates:
     groups:
       docker-dependencies:
         patterns: ["*"]
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      compose-dependencies:
+        patterns: ["*"]
