@@ -28,7 +28,7 @@ docker compose run --rm strumline-cli python -m strumline.db.bootstrap
 docker compose up -d
 ```
 
-The Compose file deploys `ghcr.io/linguisto/strumline:1.0.0` and connects to your
+The Compose file deploys `ghcr.io/linguisto/strumline:1.0.1` and connects to your
 external PostgreSQL and Loki services. See the [detailed quickstart](docs/quickstart.md)
 for prerequisites, permissions, TLS, and network exposure.
 

@@ -1,5 +1,5 @@
 x-runtime: &runtime
-  image: ghcr.io/linguisto/strumline:1.0.0
+  image: ghcr.io/linguisto/strumline:1.0.1
   restart: unless-stopped
 
 x-db-location: &db-location
@@ -39,7 +39,7 @@ services:
     volumes: ["ipc-socket:/var/run/strumline"]
     depends_on: [processor]
   strumline-cli:
-    image: ghcr.io/linguisto/strumline:1.0.0
+    image: ghcr.io/linguisto/strumline:1.0.1
     profiles: [cli]
     environment:
       <<: *control
